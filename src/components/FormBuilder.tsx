@@ -1,6 +1,15 @@
+
 import { useState } from "react";
-import { useDrop } from "react-dnd";
 import { v4 as uuidv4 } from "uuid";
+import {
+  DndContext,
+  DragEndEvent,
+  useSensor,
+  useSensors,
+  PointerSensor,
+  KeyboardSensor,
+} from "@dnd-kit/core";
+import { restrictToWindowEdges } from "@dnd-kit/modifiers";
 import {
   Tabs,
   TabsContent,
@@ -67,6 +76,11 @@ const FormBuilder = () => {
   const [history, setHistory] = useState<FormElement[][]>([[]]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor)
+  );
 
   // Add element to canvas
   const addElement = (type: ElementType) => {
@@ -203,44 +217,28 @@ const FormBuilder = () => {
     }
   };
 
-  // Handle drop on canvas
-  const [, drop] = useDrop(() => ({
-    accept: "COMPONENT",
-    drop: (item: { type: ElementType }, monitor) => {
-      const { x, y } = monitor.getClientOffset() || { x: 0, y: 0 };
-      const canvasBounds = document.getElementById("form-canvas")?.getBoundingClientRect() || { left: 0, top: 0 };
+  // Handle drag end
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (active && active.id) {
+      const activeId = String(active.id);
+      const element = elements.find(el => el.id === activeId);
       
-      const newElement: FormElement = {
-        id: uuidv4(),
-        type: item.type,
-        content: getDefaultContent(item.type),
-        style: {
-          width: "100%",
-          backgroundColor: "transparent",
-          textColor: "",
-          borderRadius: "0.375rem",
-          padding: "0.5rem",
-          fontSize: "1rem",
-          fontWeight: "normal",
-        },
-        position: {
-          x: x - canvasBounds.left,
-          y: y - canvasBounds.top,
-        },
-      };
-      
-      const newElements = [...elements, newElement];
-      setElements(newElements);
-      
-      // Add to history
-      const newHistory = history.slice(0, historyIndex + 1);
-      newHistory.push(newElements);
-      setHistory(newHistory);
-      setHistoryIndex(newHistory.length - 1);
-      
-      return { id: newElement.id };
-    },
-  }));
+      if (element) {
+        // Update element position
+        const delta = event.delta;
+        const currentPosition = element.position || { x: 0, y: 0 };
+        
+        updateElement(activeId, {
+          position: {
+            x: currentPosition.x + delta.x,
+            y: currentPosition.y + delta.y,
+          }
+        });
+      }
+    }
+  };
 
   if (showPreview) {
     return (
@@ -341,19 +339,24 @@ const FormBuilder = () => {
         </div>
         
         <div 
-          ref={drop}
           id="form-canvas" 
           className="bg-card rounded-lg shadow-sm border flex-grow overflow-auto"
         >
-          <FormCanvas 
-            elements={elements}
-            selectedElement={selectedElement}
-            setSelectedElement={setSelectedElement}
-            onUpdateElement={updateElement}
-            onDeleteElement={deleteElement}
-            onDuplicateElement={duplicateElement}
-            layout={layout}
-          />
+          <DndContext 
+            sensors={sensors}
+            modifiers={[restrictToWindowEdges]}
+            onDragEnd={handleDragEnd}
+          >
+            <FormCanvas 
+              elements={elements}
+              selectedElement={selectedElement}
+              setSelectedElement={setSelectedElement}
+              onUpdateElement={updateElement}
+              onDeleteElement={deleteElement}
+              onDuplicateElement={duplicateElement}
+              layout={layout}
+            />
+          </DndContext>
         </div>
       </div>
       

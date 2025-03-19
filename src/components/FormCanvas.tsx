@@ -1,5 +1,6 @@
 
 import { useRef } from "react";
+import { useDroppable } from "@dnd-kit/core";
 import { FormElement } from "./FormBuilder";
 import FormElementRenderer from "./FormElementRenderer";
 import { cn } from "@/lib/utils";
@@ -26,21 +27,14 @@ const FormCanvas = ({
   layout
 }: FormCanvasProps) => {
   const canvasRef = useRef<HTMLDivElement>(null);
-
-  const handleElementDrag = (id: string, deltaX: number, deltaY: number) => {
-    const element = elements.find(el => el.id === id);
-    if (element && element.position) {
-      const newPosition = {
-        x: element.position.x + deltaX,
-        y: element.position.y + deltaY
-      };
-      onUpdateElement(id, { position: newPosition });
-    }
-  };
+  
+  const { setNodeRef } = useDroppable({
+    id: 'form-canvas-droppable',
+  });
 
   return (
     <div 
-      ref={canvasRef}
+      ref={setNodeRef}
       className={cn(
         "min-h-full p-8 relative", 
         layout === "grid" && "bg-grid-pattern",
@@ -75,7 +69,6 @@ const FormCanvas = ({
             >
               <FormElementRenderer
                 element={element}
-                onDrag={layout === "free" ? (deltaX, deltaY) => handleElementDrag(element.id, deltaX, deltaY) : undefined}
               />
             </div>
           </ContextMenuTrigger>

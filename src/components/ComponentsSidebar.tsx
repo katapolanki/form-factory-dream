@@ -1,6 +1,6 @@
 
 import { useMemo, useState } from "react";
-import { useDrag } from "react-dnd";
+import { useDraggable } from "@dnd-kit/core";
 import { 
   Search, 
   Type, 
@@ -36,17 +36,18 @@ interface ComponentsSidebarProps {
 }
 
 const DraggableComponent = ({ component }: { component: ComponentItem }) => {
-  const [{ isDragging }, drag] = useDrag(() => ({
-    type: "COMPONENT",
-    item: { type: component.type },
-    collect: (monitor) => ({
-      isDragging: !!monitor.isDragging(),
-    }),
-  }));
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `draggable-${component.type}`,
+    data: {
+      type: component.type,
+    },
+  });
 
   return (
     <div
-      ref={drag}
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
       className="flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors cursor-grab select-none"
       style={{ opacity: isDragging ? 0.5 : 1 }}
     >
@@ -145,7 +146,17 @@ const ComponentsSidebar = ({ onAddElement }: ComponentsSidebarProps) => {
       <ScrollArea className="flex-grow">
         <div className="p-4 space-y-1">
           {filteredComponents.map((component) => (
-            <DraggableComponent key={`${component.type}-${component.name}`} component={component} />
+            <div key={`${component.type}-${component.name}`} className="mb-2">
+              <div 
+                className="flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors cursor-pointer select-none"
+                onClick={() => onAddElement(component.type)}
+              >
+                <div className="w-8 h-8 flex items-center justify-center rounded-md bg-muted">
+                  {component.icon}
+                </div>
+                <span className="text-sm">{component.name}</span>
+              </div>
+            </div>
           ))}
           
           {filteredComponents.length === 0 && (

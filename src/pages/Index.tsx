@@ -1,8 +1,7 @@
 
 import { useState } from "react";
 import { Toaster } from "sonner";
-import { DndProvider } from "react-dnd";
-import { HTML5Backend } from "react-dnd-html5-backend";
+import { DndContext } from "@dnd-kit/core";
 import FormBuilder from "@/components/FormBuilder";
 import Header from "@/components/Header";
 import WelcomeModal from "@/components/WelcomeModal";
@@ -19,9 +18,9 @@ const Index = () => {
       <Header />
       
       <main className="container mx-auto px-4 py-8">
-        <DndProvider backend={HTML5Backend}>
+        <DndContext>
           <FormBuilder />
-        </DndProvider>
+        </DndContext>
       </main>
       
       <footer className="border-t py-6 bg-card/50 mt-auto">
