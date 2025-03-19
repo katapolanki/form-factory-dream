@@ -1,23 +1,39 @@
-
-import { useState } from "react";
+import { useState, useReducer, useCallback, useMemo, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
-import {
-  DndContext,
+import { 
+  DndContext, 
   DragEndEvent,
   useSensor,
   useSensors,
   PointerSensor,
   KeyboardSensor,
+  TouchSensor,
+  MouseSensor,
+  MeasuringStrategy,
+  useDroppable
 } from "@dnd-kit/core";
-import { restrictToWindowEdges } from "@dnd-kit/modifiers";
+import { 
+  restrictToParentElement,
+  snapCenterToCursor
+} from "@dnd-kit/modifiers";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove
+} from "@dnd-kit/sortable";
+import { 
+  Tabs, 
+  TabsContent, 
+  TabsList, 
+  TabsTrigger 
 } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
-import {
+import { 
+  Button,
+  Tooltip,
+  Toast,
+  useToast
+} from "@/components/ui";
+import { 
   Grid2X2,
   Columns,
   SeparatorHorizontal,
@@ -27,578 +43,349 @@ import {
   Eye,
   Save,
   Code,
+  Lock,
+  Unlock,
+  Group,
+  Ungroup,
+  Smartphone,
+  Tablet,
+  Monitor,
+  Copy,
+  Trash2,
+  GripVertical
 } from "lucide-react";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useLocalStorage, useThrottledCallback } from "usehooks-ts";
 import ComponentsSidebar from "@/components/ComponentsSidebar";
 import PropertiesPanel from "@/components/PropertiesPanel";
 import FormCanvas from "@/components/FormCanvas";
 import FormPreview from "@/components/FormPreview";
-import { useFormValidation } from "@/hooks/useFormValidation";
+import { 
+  FormElement, 
+  ElementType, 
+  FormElementInstance, 
+  FormLayout,
+  FormBreakpoint
+} from "@/types";
+import { formReducer } from "@/reducers/formReducer";
+import { 
+  generateFormCode,
+  exportAsReactComponent,
+  exportAsHTML
+} from "@/lib/code-generator";
+import { 
+  validateFormStructure,
+  type FormValidationResult
+} from "@/lib/form-validator";
+import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
+import { CanvasGrid } from "@/components/canvas-grid";
+import { BreakpointSwitcher } from "@/components/breakpoint-switcher";
+import { HistoryControls } from "@/components/history-controls";
+import { CollaborationMenu } from "@/components/collaboration-menu";
 
-// Define form element types
-export const ELEMENT_TYPES = {
-  // Layout elements
-  TITLE: "title",
-  SUBTITLE: "subtitle",
-  PARAGRAPH: "paragraph",
-  SEPARATOR: "separator",
-  SPACER: "spacer",
-  HEADING: "heading",
-  DIVIDER: "divider",
-
-  // Form elements
-  TEXT: "text",
-  NUMBER: "number",
-  TEXTAREA: "textarea",
-  DATE: "date",
-  CHECKBOX: "checkbox",
-  RADIO: "radio",
-  SELECT: "select",
-  INPUT: "input",
-  BUTTON: "button",
-
-  // shadcn/ui components
-  ACCORDION: "accordion",
-  ALERT: "alert",
-  ALERT_DIALOG: "alert-dialog",
-  ASPECT_RATIO: "aspect-ratio",
-  AVATAR: "avatar",
-  BADGE: "badge",
-  BREADCRUMB: "breadcrumb",
-  CALENDAR: "calendar",
-  CARD: "card",
-  CAROUSEL: "carousel",
-  CHART: "chart",
-  COLLAPSIBLE: "collapsible",
-  COMBOBOX: "combobox",
-  COMMAND: "command",
-  CONTEXT_MENU: "context-menu",
-  DATA_TABLE: "data-table",
-  DATE_PICKER: "date-picker",
-  DIALOG: "dialog",
-  DRAWER: "drawer",
-  DROPDOWN_MENU: "dropdown-menu",
+const INITIAL_STATE = {
+  elements: [],
+  history: [[]],
+  historyIndex: 0,
+  selectedElement: null,
+  layout: "free" as FormLayout,
+  breakpoint: "desktop" as FormBreakpoint,
+  gridSize: 12,
+  snapToGrid: true,
+  lockedElements: [],
+  groupedElements: [],
+  validationErrors: new Map<string, string>()
 };
 
-// Define form element type
-export type ElementType = 
-  | "heading" 
-  | "paragraph" 
-  | "input" 
-  | "textarea" 
-  | "checkbox" 
-  | "radio" 
-  | "select" 
-  | "button" 
-  | "divider" 
-  | "spacer"
-  | "title"
-  | "subtitle"
-  | "separator"
-  | "text"
-  | "number"
-  | "date"
-  | "accordion"
-  | "alert"
-  | "alert-dialog"
-  | "aspect-ratio"
-  | "avatar"
-  | "badge"
-  | "breadcrumb"
-  | "calendar"
-  | "card"
-  | "carousel"
-  | "chart"
-  | "collapsible"
-  | "combobox"
-  | "command"
-  | "context-menu"
-  | "data-table"
-  | "date-picker"
-  | "dialog"
-  | "drawer"
-  | "dropdown-menu";
-
-// Define form element interface
-export interface FormElement {
-  id: string;
-  type: ElementType;
-  content?: string;
-  placeholder?: string;
-  required?: boolean;
-  options?: string[];
-  helpText?: string;
-  style?: {
-    width?: string;
-    backgroundColor?: string;
-    textColor?: string;
-    borderWidth?: string;
-    borderStyle?: string;
-    borderColor?: string;
-    borderRadius?: string;
-    padding?: string;
-    paddingY?: string;
-    paddingX?: string;
-    marginY?: string;
-    marginX?: string;
-    fontSize?: string;
-    fontWeight?: string;
-    lineHeight?: string;
-    letterSpacing?: string;
-    opacity?: string;
-    shadow?: string;
-  };
-  position?: {
-    x: number;
-    y: number;
-    type?: "static" | "relative" | "absolute" | "fixed";
-    top?: string;
-    right?: string;
-    bottom?: string;
-    left?: string;
-    zIndex?: string;
-    align?: "left" | "center" | "right";
-    gridColumn?: string;
-    gridRow?: string;
-    hideMobile?: boolean;
-    hideTablet?: boolean;
-    hideDesktop?: boolean;
-  };
-  width?: "full" | "medium" | "small" | "tiny" | "custom";
-  customWidth?: string;
-  customWidthUnit?: "px" | "%" | "rem" | "em";
-  size?: "xs" | "small" | "default" | "large" | "xl";
-  labelPosition?: "top" | "left" | "right" | "bottom" | "hidden";
-  textAlign?: "left" | "center" | "right" | "justify";
-  customClass?: string;
-  hidden?: boolean;
-  isSelected?: boolean;
-  
-  // Text input specific
-  defaultValue?: string | number;
-  minLength?: number;
-  maxLength?: number;
-  pattern?: string;
-  inputMode?: string;
-  autocomplete?: string;
-  
-  // Number input specific
-  min?: number;
-  max?: number;
-  step?: number;
-  
-  // Textarea specific
-  rows?: number;
-  resizable?: "none" | "vertical" | "horizontal" | "both";
-  
-  // Checkbox specific
-  defaultChecked?: boolean;
-  checkboxPosition?: "left" | "right";
-  
-  // Button specific
-  buttonVariant?: string;
-  buttonType?: string;
-  icon?: string;
-  iconPosition?: string;
-  
-  // Validation
-  validateOnBlur?: boolean;
-  validateOnChange?: boolean;
-  customValidation?: string;
-  
-  // Accessibility
-  ariaLabel?: string;
-  ariaDescription?: string;
-  role?: string;
-  tabIndex?: number;
-}
-
 const FormBuilder = () => {
-  const [elements, setElements] = useState<FormElement[]>([]);
-  const [selectedElement, setSelectedElement] = useState<FormElement | null>(null);
-  const [layout, setLayout] = useState<"free" | "grid" | "columns" | "rows">("free");
-  const [history, setHistory] = useState<FormElement[][]>([[]]);
-  const [historyIndex, setHistoryIndex] = useState(0);
-  const [showPreview, setShowPreview] = useState(false);
-  const [showCode, setShowCode] = useState(false);
-  const { validateForm } = useFormValidation();
+  const [state, dispatch] = useReducer(formReducer, INITIAL_STATE);
+  const [isDirty, setIsDirty] = useLocalStorage("form-builder-dirty", false);
+  const { toast } = useToast();
+  const { setNodeRef } = useDroppable({ id: "canvas-drop-area" });
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor)
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 10
+      }
+    }),
+    useSensor(KeyboardSensor),
+    useSensor(TouchSensor),
+    useSensor(MouseSensor)
   );
 
-  // Add element to canvas
-  const addElement = (type: ElementType) => {
-    const newElement: FormElement = {
-      id: uuidv4(),
-      type,
-      content: getDefaultContent(type),
-      style: {
-        width: "100%",
-        backgroundColor: "transparent",
-        textColor: "",
-        borderRadius: "0.375rem",
-        padding: "0.5rem",
-        fontSize: "1rem",
-        fontWeight: "normal",
-      },
-      position: { x: 0, y: 0 },
-    };
-    
-    const newElements = [...elements, newElement];
-    setElements(newElements);
-    
-    // Add to history
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(newElements);
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
-    
-    toast.success(`Added ${type} element`);
-  };
+  // Throttled auto-save
+  const autoSave = useThrottledCallback(() => {
+    if (isDirty) {
+      dispatch({ type: "SAVE_FORM" });
+      setIsDirty(false);
+      toast({ title: "Auto-saved successfully", status: "success" });
+    }
+  }, 5000);
 
-  // Get default content based on element type
-  const getDefaultContent = (type: ElementType): string => {
-    switch (type) {
-      case "heading":
-        return "Heading";
-      case "paragraph":
-        return "This is a paragraph of text.";
-      case "button":
-        return "Button";
-      case "input":
-        return "Label";
-      case "textarea":
-        return "Text Area Label";
-      case "checkbox":
-        return "Checkbox Label";
-      case "radio":
-        return "Radio Button";
-      case "select":
-        return "Select Option";
-      default:
-        return "";
+  useEffect(() => {
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty]);
+
+  const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    if (isDirty) {
+      e.preventDefault();
+      e.returnValue = "You have unsaved changes. Are you sure you want to leave?";
     }
   };
 
-  // Update element
-  const updateElement = (id: string, updates: Partial<FormElement>) => {
-    const updatedElements = elements.map(element => 
-      element.id === id ? { ...element, ...updates } : element
-    );
-    setElements(updatedElements);
-    
-    // Update selected element if it's the one being modified
-    if (selectedElement && selectedElement.id === id) {
-      setSelectedElement({ ...selectedElement, ...updates });
-    }
-    
-    // Add to history
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(updatedElements);
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
-  };
+  const handleAddElement = useCallback((type: ElementType) => {
+    dispatch({ type: "ADD_ELEMENT", elementType: type });
+    toast({ title: `Added ${type} element` });
+  }, []);
 
-  // Delete element
-  const deleteElement = (id: string) => {
-    const filteredElements = elements.filter(element => element.id !== id);
-    setElements(filteredElements);
-    
-    if (selectedElement && selectedElement.id === id) {
-      setSelectedElement(null);
-    }
-    
-    // Add to history
-    const newHistory = history.slice(0, historyIndex + 1);
-    newHistory.push(filteredElements);
-    setHistory(newHistory);
-    setHistoryIndex(newHistory.length - 1);
-    
-    toast.success("Element deleted");
-  };
+  const handleSelectElement = useCallback((element: FormElementInstance | null) => {
+    dispatch({ type: "SELECT_ELEMENT", element });
+  }, []);
 
-  // Duplicate element
-  const duplicateElement = (id: string) => {
-    const elementToDuplicate = elements.find(element => element.id === id);
-    if (elementToDuplicate) {
-      const newElement = {
-        ...elementToDuplicate,
-        id: uuidv4(),
-        content: `${elementToDuplicate.content} (copy)`,
-        position: {
-          x: (elementToDuplicate.position?.x || 0) + 20,
-          y: (elementToDuplicate.position?.y || 0) + 20,
-        },
-      };
-      
-      const newElements = [...elements, newElement];
-      setElements(newElements);
-      
-      // Add to history
-      const newHistory = history.slice(0, historyIndex + 1);
-      newHistory.push(newElements);
-      setHistory(newHistory);
-      setHistoryIndex(newHistory.length - 1);
-      
-      toast.success("Element duplicated");
-    }
-  };
+  const handleUpdateElement = useCallback((id: string, updates: Partial<FormElement>) => {
+    dispatch({ type: "UPDATE_ELEMENT", id, updates });
+    setIsDirty(true);
+  }, []);
 
-  // Undo/Redo functions
-  const undo = () => {
-    if (historyIndex > 0) {
-      setHistoryIndex(historyIndex - 1);
-      setElements(history[historyIndex - 1]);
-      toast.info("Undo");
-    }
-  };
+  const handleDeleteElement = useCallback((id: string) => {
+    dispatch({ type: "DELETE_ELEMENT", id });
+    toast({ title: "Element deleted" });
+    setIsDirty(true);
+  }, []);
 
-  const redo = () => {
-    if (historyIndex < history.length - 1) {
-      setHistoryIndex(historyIndex + 1);
-      setElements(history[historyIndex + 1]);
-      toast.info("Redo");
-    }
-  };
+  const handleDuplicateElement = useCallback((id: string) => {
+    dispatch({ type: "DUPLICATE_ELEMENT", id });
+    toast({ title: "Element duplicated" });
+    setIsDirty(true);
+  }, []);
 
-  // Handle drag end
-  const handleDragEnd = (event: DragEndEvent) => {
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
     
-    if (active && active.id) {
-      const activeId = String(active.id);
-      const element = elements.find(el => el.id === activeId);
-      
-      if (element) {
-        // Update element position
-        const delta = event.delta;
-        const currentPosition = element.position || { x: 0, y: 0 };
-        
-        updateElement(activeId, {
-          position: {
-            x: currentPosition.x + delta.x,
-            y: currentPosition.y + delta.y,
-          }
-        });
+    if (!active || !over) return;
+
+    if (active.id === over.id) return;
+
+    const oldIndex = state.elements.findIndex(el => el.id === active.id);
+    const newIndex = state.elements.findIndex(el => el.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const newElements = arrayMove(state.elements, oldIndex, newIndex);
+    dispatch({ type: "REORDER_ELEMENTS", elements: newElements });
+    setIsDirty(true);
+  }, [state.elements]);
+
+  const handleLayoutChange = useCallback((newLayout: FormLayout) => {
+    dispatch({ type: "CHANGE_LAYOUT", layout: newLayout });
+  }, []);
+
+  const handleBreakpointChange = useCallback((breakpoint: FormBreakpoint) => {
+    dispatch({ type: "CHANGE_BREAKPOINT", breakpoint });
+  }, []);
+
+  const handleValidation = useCallback(() => {
+    const result = validateFormStructure(state.elements);
+    if (!result.isValid) {
+      dispatch({ type: "SET_VALIDATION_ERRORS", errors: result.errors });
+      toast({
+        title: "Form validation failed",
+        description: result.errors.size > 0 
+          ? `${result.errors.size} errors found` 
+          : "Unknown error",
+        status: "error"
+      });
+      return false;
+    }
+    dispatch({ type: "CLEAR_VALIDATION_ERRORS" });
+    return true;
+  }, [state.elements]);
+
+  const handlePreview = useCallback(() => {
+    if (handleValidation()) {
+      dispatch({ type: "TOGGLE_PREVIEW", preview: true });
+    }
+  }, [handleValidation]);
+
+  const handleCodeExport = useCallback(async (format: 'react' | 'html') => {
+    if (!handleValidation()) return;
+
+    try {
+      switch (format) {
+        case 'react':
+          await exportAsReactComponent(state.elements);
+          break;
+        case 'html':
+          await exportAsHTML(state.elements);
+          break;
       }
+      toast({ title: `Exported as ${format.toUpperCase()} successfully`, status: "success" });
+    } catch (error) {
+      toast({ 
+        title: "Export failed", 
+        description: error instanceof Error ? error.message : "Unknown error",
+        status: "error"
+      });
     }
-  };
+  }, [state.elements, handleValidation]);
 
-  // Validate and preview form
-  const handlePreviewClick = () => {
-    const isValid = validateForm(elements);
-    if (!isValid) {
-      toast.error("Form has validation errors. Please check the form elements.");
-    } else {
-      setShowPreview(true);
-    }
-  };
-
-  // Generate code for the form
-  const generateFormCode = () => {
-    // This would generate React code for the form
-    setShowCode(true);
-  };
-
-  if (showPreview) {
+  if (state.preview) {
     return (
-      <div className="container mx-auto py-8">
-        <div className="mb-4 flex justify-end">
-          <Button 
-            variant="outline" 
-            onClick={() => setShowPreview(false)}
-            className="flex items-center gap-2"
-          >
-            <Eye className="h-4 w-4" />
-            Exit Preview
-          </Button>
-        </div>
-        <FormPreview elements={elements} />
-      </div>
-    );
-  }
-
-  if (showCode) {
-    // Show code generation view (simplified for this example)
-    return (
-      <div className="container mx-auto py-8">
-        <div className="mb-4 flex justify-end">
-          <Button 
-            variant="outline" 
-            onClick={() => setShowCode(false)}
-            className="flex items-center gap-2"
-          >
-            <Code className="h-4 w-4" />
-            Back to Editor
-          </Button>
-        </div>
-        <div className="bg-card rounded-lg shadow p-4">
-          <h2 className="text-xl font-bold mb-4">Generated Code</h2>
-          <pre className="bg-muted p-4 rounded-md overflow-auto max-h-[60vh]">
-            {/* This would show generated React code */}
-            {`import React from 'react';
-import { z } from 'zod';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-
-// Form schema generated from your form builder
-const formSchema = z.object({
-  // Schema would be generated based on form elements
-});
-
-export default function GeneratedForm() {
-  const form = useForm({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      // Default values based on form elements
-    },
-  });
-
-  const onSubmit = (data) => {
-    console.log(data);
-    // Handle form submission
-  };
-
-  return (
-    <form onSubmit={form.handleSubmit(onSubmit)}>
-      {/* Form elements would be generated here */}
-      <button type="submit">Submit</button>
-    </form>
-  );
-}`}
-          </pre>
-        </div>
-      </div>
+      <FormPreview 
+        elements={state.elements}
+        onExit={() => dispatch({ type: "TOGGLE_PREVIEW", preview: false })}
+      />
     );
   }
 
   return (
-    <div className="grid grid-cols-12 gap-4 h-[calc(100vh-12rem)]">
-      {/* Component Sidebar */}
-      <div className="col-span-2 bg-card rounded-lg shadow-sm border overflow-hidden">
-        <ComponentsSidebar onAddElement={addElement} />
+    <div className="grid grid-cols-12 gap-4 h-[calc(100vh-12rem)] relative">
+      <KeyboardShortcuts
+        onUndo={() => dispatch({ type: "UNDO" })}
+        onRedo={() => dispatch({ type: "REDO" })}
+        onSave={() => dispatch({ type: "SAVE_FORM" })}
+        onCopy={() => handleDuplicateElement(state.selectedElement?.id || '')}
+        onDelete={() => handleDeleteElement(state.selectedElement?.id || '')}
+      />
+
+      <CollaborationMenu
+        onShare={() => {/* Implement sharing logic */}}
+        onComment={() => {/* Implement comments */}}
+        onVersionHistory={() => {/* Implement version history */}}
+      />
+
+      {/* Left Sidebar */}
+      <div className="col-span-2 bg-card rounded-lg shadow-sm border overflow-hidden flex flex-col">
+        <ComponentsSidebar 
+          onAddElement={handleAddElement}
+          breakpoint={state.breakpoint}
+        />
       </div>
-      
-      {/* Form Canvas */}
-      <div className="col-span-8 flex flex-col">
+
+      {/* Main Canvas Area */}
+      <div className="col-span-8 flex flex-col relative">
         <div className="bg-card rounded-lg shadow-sm border mb-4 p-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className={cn("gap-1", layout === "free" && "bg-accent")}
-                onClick={() => setLayout("free")}
-              >
-                <LayoutGrid className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only sm:text-xs">Free</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className={cn("gap-1", layout === "grid" && "bg-accent")}
-                onClick={() => setLayout("grid")}
-              >
-                <Grid2X2 className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only sm:text-xs">Grid</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className={cn("gap-1", layout === "columns" && "bg-accent")}
-                onClick={() => setLayout("columns")}
-              >
-                <Columns className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only sm:text-xs">Columns</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className={cn("gap-1", layout === "rows" && "bg-accent")}
-                onClick={() => setLayout("rows")}
-              >
-                <SeparatorHorizontal className="h-4 w-4" />
-                <span className="sr-only sm:not-sr-only sm:text-xs">Rows</span>
-              </Button>
+              <BreakpointSwitcher
+                breakpoint={state.breakpoint}
+                onChange={handleBreakpointChange}
+              />
+              
+              <Tooltip content="Free layout">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleLayoutChange("free")}
+                  active={state.layout === "free"}
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </Button>
+              </Tooltip>
+
+              <Tooltip content="Grid system">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleLayoutChange("grid")}
+                  active={state.layout === "grid"}
+                >
+                  <Grid2X2 className="h-4 w-4" />
+                </Button>
+              </Tooltip>
+
+              <CanvasGrid
+                gridSize={state.gridSize}
+                onGridSizeChange={(size) => 
+                  dispatch({ type: "CHANGE_GRID_SIZE", size })
+                }
+                snapToGrid={state.snapToGrid}
+                onSnapToggle={(snap) => 
+                  dispatch({ type: "TOGGLE_SNAP", snap })
+                }
+              />
             </div>
-            
+
             <div className="flex items-center gap-2">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={undo}
-                disabled={historyIndex <= 0}
+              <HistoryControls
+                canUndo={state.historyIndex > 0}
+                canRedo={state.historyIndex < state.history.length - 1}
+                onUndo={() => dispatch({ type: "UNDO" })}
+                onRedo={() => dispatch({ type: "REDO" })}
+              />
+
+              <Button
+                variant="outline"
+                onClick={handlePreview}
+                leftIcon={<Eye className="h-4 w-4" />}
               >
-                <Undo2 className="h-4 w-4" />
+                Preview
               </Button>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={redo}
-                disabled={historyIndex >= history.length - 1}
+
+              <Button
+                variant="outline"
+                onClick={() => handleCodeExport('react')}
+                leftIcon={<Code className="h-4 w-4" />}
               >
-                <Redo2 className="h-4 w-4" />
+                Export
               </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="gap-1"
-                onClick={handlePreviewClick}
+
+              <Button
+                variant="solid"
+                onClick={() => dispatch({ type: "SAVE_FORM" })}
+                leftIcon={<Save className="h-4 w-4" />}
+                loading={state.isSaving}
               >
-                <Eye className="h-4 w-4" />
-                <span>Preview</span>
-              </Button>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="gap-1"
-                onClick={generateFormCode}
-              >
-                <Code className="h-4 w-4" />
-                <span>Code</span>
-              </Button>
-              <Button 
-                variant="default" 
-                size="sm" 
-                className="gap-1"
-              >
-                <Save className="h-4 w-4" />
-                <span>Save</span>
+                Save
               </Button>
             </div>
           </div>
         </div>
-        
+
         <div 
-          id="form-canvas" 
-          className="bg-card rounded-lg shadow-sm border flex-grow overflow-auto"
+          ref={setNodeRef}
+          className="bg-canvas rounded-lg shadow-sm border flex-grow overflow-auto relative"
         >
-          <DndContext 
+          <DndContext
             sensors={sensors}
-            modifiers={[restrictToWindowEdges]}
+            modifiers={[restrictToParentElement, snapCenterToCursor]}
+            collisionDetection={closestCenter}
+            measuring={{ droppable: { strategy: MeasuringStrategy.Always }}}
             onDragEnd={handleDragEnd}
           >
-            <FormCanvas 
-              elements={elements}
-              selectedElement={selectedElement}
-              setSelectedElement={setSelectedElement}
-              onUpdateElement={updateElement}
-              onDeleteElement={deleteElement}
-              onDuplicateElement={duplicateElement}
-              layout={layout}
-            />
+            <SortableContext
+              items={state.elements}
+              strategy={verticalListSortingStrategy}
+            >
+              <FormCanvas
+                elements={state.elements}
+                selectedElement={state.selectedElement}
+                layout={state.layout}
+                gridSize={state.gridSize}
+                snapToGrid={state.snapToGrid}
+                breakpoint={state.breakpoint}
+                validationErrors={state.validationErrors}
+                onSelect={handleSelectElement}
+                onUpdate={handleUpdateElement}
+                onDelete={handleDeleteElement}
+                onDuplicate={handleDuplicateElement}
+              />
+            </SortableContext>
           </DndContext>
         </div>
       </div>
-      
-      {/* Properties Panel */}
-      <div className="col-span-2 bg-card rounded-lg shadow-sm border overflow-hidden">
-        <PropertiesPanel 
-          selectedElement={selectedElement}
-          onUpdateElement={updateElement}
+
+      {/* Right Sidebar */}
+      <div className="col-span-2 bg-card rounded-lg shadow-sm border overflow-hidden flex flex-col">
+        <PropertiesPanel
+          selectedElement={state.selectedElement}
+          breakpoint={state.breakpoint}
+          validationErrors={state.validationErrors}
+          onUpdate={handleUpdateElement}
+          onLock={(id) => dispatch({ type: "TOGGLE_LOCK", id })}
+          onGroup={(ids) => dispatch({ type: "GROUP_ELEMENTS", ids })}
         />
       </div>
     </div>
