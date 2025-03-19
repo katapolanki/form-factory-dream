@@ -1,95 +1,111 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
-import { Moon, Sun, Save, Download, UploadCloud, Settings } from "lucide-react";
+import { 
+  Save, 
+  Download, 
+  UploadCloud, 
+  Settings, 
+  History,
+  Share2,
+  GitBranch,
+  Cloud,
+  CloudOff
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { 
   Tooltip,
   TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
+  TooltipTrigger
 } from "@/components/ui/tooltip";
 import { ModeToggle } from "@/components/ui/mode-toggle";
-import { toast } from "sonner";
+import { useFormDesigner } from "@/hooks/use-form-designer";
+import { ProjectNameInput } from "./ProjectNameInput";
+import { CollaborationMenu } from "./CollaborationMenu";
+import { ExportMenu } from "./ExportMenu";
+import { useAutoSave } from "@/hooks/use-auto-save";
 
 const Header = () => {
-  const [projectName, setProjectName] = useState("My Form");
+  const { project, isDirty, isSaving, actions } = useFormDesigner();
+  const [isOnline, setIsOnline] = useState(true);
+  const { startAutoSave, stopAutoSave } = useAutoSave();
 
-  const handleSave = () => {
-    toast.success("Form saved successfully!");
-  };
-
-  const handleExport = () => {
-    toast.success("Form exported successfully!");
-  };
-
-  const handleImport = () => {
-    toast.info("Import feature coming soon!");
-  };
+  useEffect(() => {
+    window.addEventListener("online", () => setIsOnline(true));
+    window.addEventListener("offline", () => setIsOnline(false));
+    return () => {
+      window.removeEventListener("online", () => setIsOnline(true));
+      window.removeEventListener("offline", () => setIsOnline(false));
+    };
+  }, []);
 
   return (
-    <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
+    <header className="border-b bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60 sticky top-0 z-50">
       <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold">
-              Form Builder
-            </h1>
-            <div className="h-6 w-px bg-border mx-2" />
-            <input
-              type="text"
-              value={projectName}
-              onChange={(e) => setProjectName(e.target.value)}
-              className="bg-transparent border-none focus:outline-none text-sm font-medium"
+        <div className="flex h-16 items-center justify-between gap-4">
+          {/* Left Section */}
+          <div className="flex items-center gap-4">
+            <ProjectNameInput
+              value={project.name}
+              onChange={actions.setProjectName}
             />
+            <div className="flex items-center gap-2">
+              {!isOnline && (
+                <Tooltip>
+                  <TooltipTrigger>
+                    <CloudOff className="h-5 w-5 text-destructive" />
+                  </TooltipTrigger>
+                  <TooltipContent>Offline mode - changes saved locally</TooltipContent>
+                </Tooltip>
+              )}
+              {isSaving && (
+                <span className="text-sm text-muted-foreground">
+                  Saving...
+                </span>
+              )}
+            </div>
           </div>
 
-          <TooltipProvider>
-            <div className="flex items-center gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" onClick={handleSave}>
-                    <Save className="h-4 w-4" />
-                    <span className="sr-only">Save</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Save form</TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" onClick={handleExport}>
-                    <Download className="h-4 w-4" />
-                    <span className="sr-only">Export</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Export form</TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon" onClick={handleImport}>
-                    <UploadCloud className="h-4 w-4" />
-                    <span className="sr-only">Import</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Import form</TooltipContent>
-              </Tooltip>
-              
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Settings className="h-4 w-4" />
-                    <span className="sr-only">Settings</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Settings</TooltipContent>
-              </Tooltip>
-              
-              <div className="h-6 w-px bg-border mx-1" />
-              <ModeToggle />
-            </div>
-          </TooltipProvider>
+          {/* Right Section */}
+          <div className="flex items-center gap-2">
+            <CollaborationMenu
+              projectId={project.id}
+              onShare={actions.shareProject}
+            />
+
+            <ExportMenu
+              onExport={actions.exportProject}
+            />
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Settings className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem>
+                  <History className="mr-2 h-4 w-4" />
+                  Version History
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <GitBranch className="mr-2 h-4 w-4" />
+                  Branches
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={startAutoSave}>
+                  <Cloud className="mr-2 h-4 w-4" />
+                  Auto-save {project.autoSave ? "✓" : ""}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <ModeToggle />
+          </div>
         </div>
       </div>
     </header>
