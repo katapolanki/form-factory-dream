@@ -24,7 +24,8 @@ import {
   Brush, 
   Layout, 
   TextCursor,
-  ClipboardCheck 
+  ClipboardCheck,
+  Accessibility
 } from "lucide-react";
 import { FormElement } from "./FormBuilder";
 
@@ -76,7 +77,7 @@ const PropertiesPanel = ({ selectedElement, onUpdateElement }: PropertiesPanelPr
       </div>
       
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-grow flex flex-col">
-        <TabsList className="grid grid-cols-4 mx-4 my-2">
+        <TabsList className="grid grid-cols-5 mx-4 my-2">
           <TabsTrigger value="content" className="h-8 text-xs">
             <TextCursor className="h-3 w-3 mr-1" />
             Content
@@ -92,6 +93,10 @@ const PropertiesPanel = ({ selectedElement, onUpdateElement }: PropertiesPanelPr
           <TabsTrigger value="validation" className="h-8 text-xs">
             <ClipboardCheck className="h-3 w-3 mr-1" />
             Validate
+          </TabsTrigger>
+          <TabsTrigger value="a11y" className="h-8 text-xs">
+            <Accessibility className="h-3 w-3 mr-1" />
+            A11y
           </TabsTrigger>
         </TabsList>
         
@@ -331,11 +336,85 @@ const PropertiesPanel = ({ selectedElement, onUpdateElement }: PropertiesPanelPr
                   </div>
                 </div>
               </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="position-type">Position Type</Label>
+                <Select
+                  value={selectedElement.position?.type || "static"}
+                  onValueChange={(value) => {
+                    const position = { 
+                      ...selectedElement.position, 
+                      type: value as "static" | "relative" | "absolute" | "fixed" 
+                    };
+                    onUpdateElement(selectedElement.id, { position });
+                  }}
+                >
+                  <SelectTrigger id="position-type">
+                    <SelectValue placeholder="Select position type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="static">Static</SelectItem>
+                    <SelectItem value="relative">Relative</SelectItem>
+                    <SelectItem value="absolute">Absolute</SelectItem>
+                    <SelectItem value="fixed">Fixed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Responsive Visibility</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="hide-mobile" 
+                      checked={!selectedElement.position?.hideMobile}
+                      onCheckedChange={(checked) => {
+                        const position = { 
+                          ...selectedElement.position, 
+                          hideMobile: !checked 
+                        };
+                        onUpdateElement(selectedElement.id, { position });
+                      }}
+                    />
+                    <Label htmlFor="hide-mobile" className="text-xs">Mobile</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="hide-tablet" 
+                      checked={!selectedElement.position?.hideTablet}
+                      onCheckedChange={(checked) => {
+                        const position = { 
+                          ...selectedElement.position, 
+                          hideTablet: !checked 
+                        };
+                        onUpdateElement(selectedElement.id, { position });
+                      }}
+                    />
+                    <Label htmlFor="hide-tablet" className="text-xs">Tablet</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="hide-desktop" 
+                      checked={!selectedElement.position?.hideDesktop}
+                      onCheckedChange={(checked) => {
+                        const position = { 
+                          ...selectedElement.position, 
+                          hideDesktop: !checked 
+                        };
+                        onUpdateElement(selectedElement.id, { position });
+                      }}
+                    />
+                    <Label htmlFor="hide-desktop" className="text-xs">Desktop</Label>
+                  </div>
+                </div>
+              </div>
             </div>
           </TabsContent>
           
           <TabsContent value="validation" className="p-4 space-y-4 m-0">
-            {(selectedElement.type === "input" || selectedElement.type === "textarea") && (
+            {(selectedElement.type === "input" || 
+              selectedElement.type === "text" || 
+              selectedElement.type === "textarea") && (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="min-length">Minimum Length</Label>
@@ -344,6 +423,11 @@ const PropertiesPanel = ({ selectedElement, onUpdateElement }: PropertiesPanelPr
                     type="number"
                     min="0"
                     placeholder="0"
+                    value={selectedElement.minLength || ""}
+                    onChange={(e) => {
+                      const value = e.target.value ? parseInt(e.target.value) : undefined;
+                      onUpdateElement(selectedElement.id, { minLength: value });
+                    }}
                   />
                 </div>
                 
@@ -354,6 +438,11 @@ const PropertiesPanel = ({ selectedElement, onUpdateElement }: PropertiesPanelPr
                     type="number"
                     min="0"
                     placeholder="Unlimited"
+                    value={selectedElement.maxLength || ""}
+                    onChange={(e) => {
+                      const value = e.target.value ? parseInt(e.target.value) : undefined;
+                      onUpdateElement(selectedElement.id, { maxLength: value });
+                    }}
                   />
                 </div>
                 
@@ -362,24 +451,187 @@ const PropertiesPanel = ({ selectedElement, onUpdateElement }: PropertiesPanelPr
                   <Input
                     id="validation-pattern"
                     placeholder="e.g. [A-Za-z]+"
+                    value={selectedElement.pattern || ""}
+                    onChange={(e) => {
+                      onUpdateElement(selectedElement.id, { pattern: e.target.value });
+                    }}
                   />
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="error-message">Error Message</Label>
+                  <Label htmlFor="custom-validation">Custom Validation</Label>
+                  <Textarea
+                    id="custom-validation"
+                    placeholder="e.g. value.includes('@') && value.includes('.')"
+                    value={selectedElement.customValidation || ""}
+                    onChange={(e) => {
+                      onUpdateElement(selectedElement.id, { customValidation: e.target.value });
+                    }}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    JavaScript expression that returns true/false. The variable 'value' contains the input value.
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="validate-on-blur" 
+                      checked={selectedElement.validateOnBlur || false}
+                      onCheckedChange={(checked) => {
+                        onUpdateElement(selectedElement.id, { validateOnBlur: checked });
+                      }}
+                    />
+                    <Label htmlFor="validate-on-blur">Validate on Blur</Label>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Switch 
+                      id="validate-on-change" 
+                      checked={selectedElement.validateOnChange || false}
+                      onCheckedChange={(checked) => {
+                        onUpdateElement(selectedElement.id, { validateOnChange: checked });
+                      }}
+                    />
+                    <Label htmlFor="validate-on-change">Validate on Change</Label>
+                  </div>
+                </div>
+              </>
+            )}
+            
+            {selectedElement.type === "number" && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="min-value">Minimum Value</Label>
                   <Input
-                    id="error-message"
-                    placeholder="Please enter a valid value"
+                    id="min-value"
+                    type="number"
+                    placeholder="No minimum"
+                    value={selectedElement.min ?? ""}
+                    onChange={(e) => {
+                      const value = e.target.value ? parseFloat(e.target.value) : undefined;
+                      onUpdateElement(selectedElement.id, { min: value });
+                    }}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="max-value">Maximum Value</Label>
+                  <Input
+                    id="max-value"
+                    type="number"
+                    placeholder="No maximum"
+                    value={selectedElement.max ?? ""}
+                    onChange={(e) => {
+                      const value = e.target.value ? parseFloat(e.target.value) : undefined;
+                      onUpdateElement(selectedElement.id, { max: value });
+                    }}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="step-value">Step</Label>
+                  <Input
+                    id="step-value"
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="1"
+                    value={selectedElement.step ?? ""}
+                    onChange={(e) => {
+                      const value = e.target.value ? parseFloat(e.target.value) : undefined;
+                      onUpdateElement(selectedElement.id, { step: value });
+                    }}
                   />
                 </div>
               </>
             )}
             
-            {selectedElement.type !== "input" && selectedElement.type !== "textarea" && (
+            {(selectedElement.type !== "input" && 
+              selectedElement.type !== "text" && 
+              selectedElement.type !== "textarea" && 
+              selectedElement.type !== "number") && (
               <div className="text-center py-8 text-muted-foreground">
                 <p>Validation options are not available for this element type.</p>
               </div>
             )}
+          </TabsContent>
+          
+          <TabsContent value="a11y" className="p-4 space-y-4 m-0">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="aria-label">ARIA Label</Label>
+                <Input
+                  id="aria-label"
+                  placeholder="Descriptive label for screen readers"
+                  value={selectedElement.ariaLabel || ""}
+                  onChange={(e) => {
+                    onUpdateElement(selectedElement.id, { ariaLabel: e.target.value });
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Provides an accessible name for screen readers when visual label is not present.
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="aria-description">ARIA Description</Label>
+                <Textarea
+                  id="aria-description"
+                  placeholder="Additional information about this element"
+                  value={selectedElement.ariaDescription || ""}
+                  onChange={(e) => {
+                    onUpdateElement(selectedElement.id, { ariaDescription: e.target.value });
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Provides additional descriptive information for screen readers.
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>ARIA Role</Label>
+                <Select
+                  value={selectedElement.role || ""}
+                  onValueChange={(value) => {
+                    onUpdateElement(selectedElement.id, { role: value });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select ARIA role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Default</SelectItem>
+                    <SelectItem value="button">Button</SelectItem>
+                    <SelectItem value="checkbox">Checkbox</SelectItem>
+                    <SelectItem value="link">Link</SelectItem>
+                    <SelectItem value="textbox">Textbox</SelectItem>
+                    <SelectItem value="radio">Radio</SelectItem>
+                    <SelectItem value="heading">Heading</SelectItem>
+                    <SelectItem value="img">Image</SelectItem>
+                    <SelectItem value="region">Region</SelectItem>
+                    <SelectItem value="navigation">Navigation</SelectItem>
+                    <SelectItem value="form">Form</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Defines the type of element to assistive technologies.
+                </p>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <Switch 
+                  id="tab-index" 
+                  checked={selectedElement.tabIndex !== undefined}
+                  onCheckedChange={(checked) => {
+                    onUpdateElement(selectedElement.id, { 
+                      tabIndex: checked ? 0 : undefined 
+                    });
+                  }}
+                />
+                <Label htmlFor="tab-index">Include in Tab Order</Label>
+              </div>
+            </div>
           </TabsContent>
         </div>
       </Tabs>

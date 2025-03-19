@@ -28,15 +28,15 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20">
+    <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 flex flex-col">
       <Toaster position="top-right" />
       
       {showWelcome && <WelcomeModal onClose={() => setShowWelcome(false)} />}
       
       <Header />
       
-      <div className="container mx-auto px-4 py-4">
-        <div className="flex justify-between items-center mb-4">
+      <div className="container mx-auto px-4 py-4 lg:px-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
           <div className="flex items-center">
             <h1 className="text-xl font-bold mr-2">{formName}</h1>
             <input
@@ -45,6 +45,7 @@ const Index = () => {
               onChange={(e) => setFormName(e.target.value)}
               className="sr-only peer"
               id="form-name"
+              aria-label="Form name"
             />
             <label
               htmlFor="form-name"
@@ -55,16 +56,16 @@ const Index = () => {
             </label>
           </div>
           
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={handleImportForm}>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={handleImportForm} className="w-full sm:w-auto">
               <FileUp className="mr-2 h-4 w-4" />
               Import
             </Button>
-            <Button size="sm" variant="outline" onClick={handleExportForm}>
+            <Button size="sm" variant="outline" onClick={handleExportForm} className="w-full sm:w-auto">
               <FileDown className="mr-2 h-4 w-4" />
               Export
             </Button>
-            <Button size="sm" onClick={handleSaveForm}>
+            <Button size="sm" onClick={handleSaveForm} className="w-full sm:w-auto">
               <SaveIcon className="mr-2 h-4 w-4" />
               Save
             </Button>
@@ -72,7 +73,7 @@ const Index = () => {
         </div>
       </div>
       
-      <main className="container mx-auto px-4 pb-8">
+      <main className="container mx-auto px-4 pb-8 lg:px-8 flex-grow">
         <DndContext>
           <FormBuilder />
         </DndContext>

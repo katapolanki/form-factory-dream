@@ -25,6 +25,8 @@ import {
   Undo2,
   Redo2,
   Eye,
+  Save,
+  Code,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -32,6 +34,7 @@ import ComponentsSidebar from "@/components/ComponentsSidebar";
 import PropertiesPanel from "@/components/PropertiesPanel";
 import FormCanvas from "@/components/FormCanvas";
 import FormPreview from "@/components/FormPreview";
+import { useFormValidation } from "@/hooks/useFormValidation";
 
 // Define form element types
 export const ELEMENT_TYPES = {
@@ -203,6 +206,12 @@ export interface FormElement {
   validateOnBlur?: boolean;
   validateOnChange?: boolean;
   customValidation?: string;
+  
+  // Accessibility
+  ariaLabel?: string;
+  ariaDescription?: string;
+  role?: string;
+  tabIndex?: number;
 }
 
 const FormBuilder = () => {
@@ -212,6 +221,8 @@ const FormBuilder = () => {
   const [history, setHistory] = useState<FormElement[][]>([[]]);
   const [historyIndex, setHistoryIndex] = useState(0);
   const [showPreview, setShowPreview] = useState(false);
+  const [showCode, setShowCode] = useState(false);
+  const { validateForm } = useFormValidation();
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -376,6 +387,22 @@ const FormBuilder = () => {
     }
   };
 
+  // Validate and preview form
+  const handlePreviewClick = () => {
+    const isValid = validateForm(elements);
+    if (!isValid) {
+      toast.error("Form has validation errors. Please check the form elements.");
+    } else {
+      setShowPreview(true);
+    }
+  };
+
+  // Generate code for the form
+  const generateFormCode = () => {
+    // This would generate React code for the form
+    setShowCode(true);
+  };
+
   if (showPreview) {
     return (
       <div className="container mx-auto py-8">
@@ -390,6 +417,60 @@ const FormBuilder = () => {
           </Button>
         </div>
         <FormPreview elements={elements} />
+      </div>
+    );
+  }
+
+  if (showCode) {
+    // Show code generation view (simplified for this example)
+    return (
+      <div className="container mx-auto py-8">
+        <div className="mb-4 flex justify-end">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowCode(false)}
+            className="flex items-center gap-2"
+          >
+            <Code className="h-4 w-4" />
+            Back to Editor
+          </Button>
+        </div>
+        <div className="bg-card rounded-lg shadow p-4">
+          <h2 className="text-xl font-bold mb-4">Generated Code</h2>
+          <pre className="bg-muted p-4 rounded-md overflow-auto max-h-[60vh]">
+            {/* This would show generated React code */}
+            {`import React from 'react';
+import { z } from 'zod';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+
+// Form schema generated from your form builder
+const formSchema = z.object({
+  // Schema would be generated based on form elements
+});
+
+export default function GeneratedForm() {
+  const form = useForm({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      // Default values based on form elements
+    },
+  });
+
+  const onSubmit = (data) => {
+    console.log(data);
+    // Handle form submission
+  };
+
+  return (
+    <form onSubmit={form.handleSubmit(onSubmit)}>
+      {/* Form elements would be generated here */}
+      <button type="submit">Submit</button>
+    </form>
+  );
+}`}
+          </pre>
+        </div>
       </div>
     );
   }
@@ -465,10 +546,27 @@ const FormBuilder = () => {
                 variant="outline" 
                 size="sm" 
                 className="gap-1"
-                onClick={() => setShowPreview(true)}
+                onClick={handlePreviewClick}
               >
                 <Eye className="h-4 w-4" />
                 <span>Preview</span>
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="gap-1"
+                onClick={generateFormCode}
+              >
+                <Code className="h-4 w-4" />
+                <span>Code</span>
+              </Button>
+              <Button 
+                variant="default" 
+                size="sm" 
+                className="gap-1"
+              >
+                <Save className="h-4 w-4" />
+                <span>Save</span>
               </Button>
             </div>
           </div>
