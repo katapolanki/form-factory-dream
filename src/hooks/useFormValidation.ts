@@ -1,120 +1,116 @@
+import { useEffect, useCallback, useState } from "react";
+import { z, ZodSchema } from "zod";
+import { FormElement, ValidationResult } from "@/types";
+import { safeEvaluate } from "@/lib/validation-utils";
 
-import { useState } from "react";
-import { FormElement } from "@/components/FormBuilder";
-import { validateElement } from "@/lib/validation";
-import { z } from "zod";
+type ValidationMode = "onChange" | "onBlur" | "onSubmit";
 
-export interface ValidationResult {
-  valid: boolean;
-  error?: string;
-}
+type Options = {
+  mode?: ValidationMode;
+  schema?: ZodSchema;
+  crossFieldValidation?: Record<string, (values: any) => string | null>;
+};
 
-export function useFormValidation() {
-  const [validationResults, setValidationResults] = useState<Record<string, ValidationResult>>({});
+export function useAdvancedFormValidation<T extends Record<string, any>>(
+  initialValues: T,
+  options: Options = {}
+) {
+  const [values, setValues] = useState<T>(initialValues);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isValidating, setIsValidating] = useState(false);
 
-  // Validate a single element
-  const validateFormElement = (element: FormElement): ValidationResult => {
-    // First check Zod schema validation
-    const zodResult = validateElement(element);
-    
-    if (!zodResult.success) {
-      const error = zodResult.error.issues[0]?.message || "Invalid element";
-      return { valid: false, error };
-    }
-    
-    // Then check specific validation rules based on element type
-    if (element.required) {
-      // Required field validation
-      if (element.type === "input" || element.type === "text" || element.type === "textarea") {
-        if (!element.defaultValue || element.defaultValue === "") {
-          return { valid: false, error: "This field is required" };
+  const validateField = useCallback(
+    async (name: string, value: any) => {
+      const element = initialValues[name] as FormElement;
+      let error = null;
+
+      // 1. Validate against Zod schema
+      if (options.schema) {
+        try {
+          await options.schema.parseAsync({ [name]: value });
+        } catch (err) {
+          if (err instanceof z.ZodError) {
+            error = err.errors[0].message;
+          }
         }
-      } else if (element.type === "checkbox" && !element.defaultChecked) {
-        return { valid: false, error: "This checkbox must be checked" };
       }
-    }
-    
-    // Text length validation
-    if ((element.type === "input" || element.type === "text" || element.type === "textarea") && 
-        typeof element.defaultValue === "string") {
-      if (element.minLength && element.defaultValue.length < element.minLength) {
-        return { 
-          valid: false, 
-          error: `Input must be at least ${element.minLength} characters` 
-        };
-      }
-      
-      if (element.maxLength && element.defaultValue.length > element.maxLength) {
-        return { 
-          valid: false, 
-          error: `Input must be no more than ${element.maxLength} characters` 
-        };
-      }
-      
-      // Pattern validation
-      if (element.pattern && !new RegExp(element.pattern).test(element.defaultValue)) {
-        return { valid: false, error: "Input format is invalid" };
-      }
-    }
-    
-    // Number range validation
-    if (element.type === "number" && typeof element.defaultValue === "number") {
-      if (element.min !== undefined && element.defaultValue < element.min) {
-        return { 
-          valid: false, 
-          error: `Value must be at least ${element.min}` 
-        };
-      }
-      
-      if (element.max !== undefined && element.defaultValue > element.max) {
-        return { 
-          valid: false, 
-          error: `Value must be no more than ${element.max}` 
-        };
-      }
-    }
-    
-    // Custom validation
-    if (element.customValidation) {
-      try {
-        // Be careful with eval - in a production app, you might want to use a safer approach
-        const customValidationFn = new Function('value', `return ${element.customValidation}`);
-        const isValid = customValidationFn(element.defaultValue);
-        
-        if (!isValid) {
-          return { valid: false, error: "Custom validation failed" };
+
+      // 2. Element-specific validation
+      if (!error && element.validation) {
+        const { required, minLength, maxLength, pattern, custom } = element.validation;
+
+        if (required && !value) {
+          error = "This field is required";
+        } else if (minLength && value.length < minLength) {
+          error = `Minimum ${minLength} characters required`;
+        } else if (maxLength && value.length > maxLength) {
+          error = `Maximum ${maxLength} characters allowed`;
+        } else if (pattern && !new RegExp(pattern).test(value)) {
+          error = "Invalid format";
+        } else if (custom) {
+          error = await safeEvaluate(custom, value, values);
         }
-      } catch (err) {
-        console.error("Custom validation error:", err);
-        return { valid: false, error: "Invalid custom validation" };
       }
+
+      // 3. Cross-field validation
+      if (!error && options.crossFieldValidation?.[name]) {
+        error = options.crossFieldValidation[name](values);
+      }
+
+      setErrors(prev => ({ ...prev, [name]: error || "" }));
+      return !error;
+    },
+    [initialValues, options.schema, options.crossFieldValidation, values]
+  );
+
+  const validateForm = useCallback(async () => {
+    setIsValidating(true);
+    const results = await Promise.all(
+      Object.entries(values).map(([name, value]) =>
+        validateField(name, value)
+      )
+    );
+    setIsValidating(false);
+    return results.every(Boolean);
+  }, [values, validateField]);
+
+  const handleChange = useCallback(
+    async (name: string, value: any) => {
+      setValues(prev => ({ ...prev, [name]: value }));
+      if (options.mode === "onChange") {
+        await validateField(name, value);
+      }
+    },
+    [options.mode, validateField]
+  );
+
+  const handleBlur = useCallback(
+    async (name: string) => {
+      if (options.mode === "onBlur") {
+        await validateField(name, values[name]);
+      }
+    },
+    [options.mode, validateField, values]
+  );
+
+  useEffect(() => {
+    if (options.mode === "onSubmit") {
+      setErrors({});
     }
-    
-    return { valid: true };
-  };
-  
-  // Validate all elements in a form
-  const validateForm = (elements: FormElement[]): boolean => {
-    const results: Record<string, ValidationResult> = {};
-    let isFormValid = true;
-    
-    elements.forEach(element => {
-      const result = validateFormElement(element);
-      results[element.id] = result;
-      
-      if (!result.valid) {
-        isFormValid = false;
-      }
-    });
-    
-    setValidationResults(results);
-    return isFormValid;
-  };
-  
+  }, [options.mode]);
+
   return {
-    validateElement: validateFormElement,
+    values,
+    errors,
+    isValid: Object.values(errors).every(error => !error),
+    isValidating,
+    setValues,
+    handleChange,
+    handleBlur,
     validateForm,
-    validationResults,
-    getElementValidation: (elementId: string) => validationResults[elementId] || { valid: true }
+    reset: () => {
+      setValues(initialValues);
+      setErrors({});
+    },
   };
 }
