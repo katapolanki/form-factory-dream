@@ -1,19 +1,69 @@
-import * as React from "react"
+import { useEffect, useState, useCallback } from "react";
+import { debounce } from "@/lib/utils";
 
-const MOBILE_BREAKPOINT = 768
+type Breakpoints = {
+  mobile: number;
+  tablet?: number;
+};
 
-export function useIsMobile() {
-  const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
+type Orientation = "portrait" | "landscape";
 
-  React.useEffect(() => {
-    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT - 1}px)`)
-    const onChange = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-    }
-    mql.addEventListener("change", onChange)
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
-    return () => mql.removeEventListener("change", onChange)
-  }, [])
+export function useResponsive(
+  breakpoints: Breakpoints = { mobile: 768, tablet: 1024 }
+) {
+  const [state, setState] = useState({
+    isMobile: false,
+    isTablet: false,
+    isDesktop: true,
+    orientation: "portrait" as Orientation,
+    breakpoint: "desktop" as keyof Breakpoints,
+  });
 
-  return !!isMobile
+  const getOrientation = useCallback((): Orientation => {
+    return window.matchMedia("(orientation: portrait)").matches
+      ? "portrait"
+      : "landscape";
+  }, []);
+
+  const calculateBreakpoint = useCallback(
+    (width: number) => {
+      if (width < breakpoints.mobile) return "mobile";
+      if (breakpoints.tablet && width < breakpoints.tablet) return "tablet";
+      return "desktop";
+    },
+    [breakpoints]
+  );
+
+  const updateState = useCallback(() => {
+    const width = window.innerWidth;
+    const newBreakpoint = calculateBreakpoint(width);
+    const orientation = getOrientation();
+
+    setState({
+      isMobile: newBreakpoint === "mobile",
+      isTablet: newBreakpoint === "tablet",
+      isDesktop: newBreakpoint === "desktop",
+      orientation,
+      breakpoint: newBreakpoint,
+    });
+  }, [calculateBreakpoint, getOrientation]);
+
+  useEffect(() => {
+    const debouncedUpdate = debounce(updateState, 100);
+    updateState();
+
+    window.addEventListener("resize", debouncedUpdate);
+    window.addEventListener("orientationchange", debouncedUpdate);
+
+    return () => {
+      window.removeEventListener("resize", debouncedUpdate);
+      window.removeEventListener("orientationchange", debouncedUpdate);
+    };
+  }, [updateState]);
+
+  return {
+    ...state,
+    isPortrait: state.orientation === "portrait",
+    isLandscape: state.orientation === "landscape",
+  };
 }
