@@ -1,640 +1,252 @@
-
-import { useState } from "react";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
+import { useCallback, useMemo } from "react";
+import { useFormContext } from "react-hook-form";
+import { z } from "zod";
+import { FormElement, ElementType } from "./types";
 import { 
   Tabs, 
   TabsList, 
   TabsTrigger, 
-  TabsContent 
-} from "@/components/ui/tabs";
-import { 
-  Textarea 
-} from "@/components/ui/textarea";
-import {
+  TabsContent,
+  Label,
+  Input,
+  Textarea,
   Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Switch,
+  Button,
+  ColorPicker,
+  Slider,
+  Tooltip,
+  CodePreview,
+  Icon,
+  Badge
+} from "@/components/ui";
 import { 
-  Brush, 
-  Layout, 
-  TextCursor,
-  ClipboardCheck,
-  Accessibility
-} from "lucide-react";
-import { FormElement } from "./FormBuilder";
+  styleSchema,
+  layoutSchema,
+  validationSchema,
+  a11ySchema
+} from "@/schemas/element-properties";
+import { 
+  useDebouncedUpdate,
+  useElementContextMenu,
+  useStylePreview
+} from "@/hooks";
+import { 
+  cssVariables,
+  spacingScale,
+  radiusScale,
+  typographyScale
+} from "@/lib/design-tokens";
 
 interface PropertiesPanelProps {
   selectedElement: FormElement | null;
-  onUpdateElement: (id: string, updates: Partial<FormElement>) => void;
+  onUpdate: (updates: Partial<FormElement>) => void;
 }
 
-const PropertiesPanel = ({ selectedElement, onUpdateElement }: PropertiesPanelProps) => {
-  const [activeTab, setActiveTab] = useState("content");
+const PropertySection = ({ title, children, tooltip }) => (
+  <div className="space-y-4 p-4 border-b">
+    <div className="flex items-center justify-between">
+      <Label className="text-sm font-medium">{title}</Label>
+      {tooltip && <Tooltip content={tooltip}><Icon name="info" className="h-4 w-4" /></Tooltip>}
+    </div>
+    {children}
+  </div>
+);
+
+const PropertiesPanel = ({ selectedElement, onUpdate }: PropertiesPanelProps) => {
+  const { register, formState: { errors }, trigger } = useFormContext();
+  const { debouncedUpdate } = useDebouncedUpdate(onUpdate, 300);
+  const { previewStyles, updatePreview } = useStylePreview();
+
+  const handleUpdate = useCallback((path: string, value: any) => {
+    debouncedUpdate({ [path]: value });
+    if (path.startsWith('style')) updatePreview(path.split('.')[1], value);
+  }, [debouncedUpdate, updatePreview]);
+
+  const renderContentTab = useMemo(() => {
+    if (!selectedElement) return null;
+    
+    return (
+      <>
+        <PropertySection title="Content" tooltip="Main content and labels">
+          <Input
+            label="Element Label"
+            {...register('content', { 
+              required: "Label is required",
+              maxLength: 50 
+            })}
+            error={errors.content?.message}
+          />
+          <Input
+            label="Placeholder Text"
+            {...register('placeholder')}
+          />
+        </PropertySection>
+
+        {['select', 'radio', 'checkbox'].includes(selectedElement.type) && (
+          <PropertySection title="Options" tooltip="List of selectable options">
+            <Textarea
+              label="Options (one per line)"
+              {...register('options')}
+              parse={(value) => value.split('\n').filter(Boolean)}
+              format={(value) => value?.join('\n') || ''}
+            />
+          </PropertySection>
+        )}
+      </>
+    );
+  }, [selectedElement, register, errors]);
+
+  const renderStyleTab = useMemo(() => (
+    <div className="grid grid-cols-2 gap-4 p-4">
+      <div className="space-y-4">
+        <Input
+          label="Width"
+          type="select"
+          options={cssVariables.width}
+          {...register('style.width')}
+        />
+        <Input
+          label="Padding"
+          type="range"
+          min={0}
+          max={spacingScale.length - 1}
+          step={1}
+          {...register('style.padding', {
+            setValueAs: (v) => spacingScale[Number(v)]
+          })}
+        />
+        <Input
+          label="Border Radius"
+          type="range"
+          min={0}
+          max={radiusScale.length - 1}
+          step={1}
+          {...register('style.borderRadius', {
+            setValueAs: (v) => radiusScale[Number(v)]
+          })}
+        />
+      </div>
+      
+      <div className="space-y-4">
+        <ColorPicker
+          label="Text Color"
+          {...register('style.color')}
+          onChange={(color) => handleUpdate('style.color', color)}
+        />
+        <ColorPicker
+          label="Background Color"
+          {...register('style.backgroundColor')}
+          onChange={(color) => handleUpdate('style.backgroundColor', color)}
+        />
+        <Input
+          label="Font Size"
+          type="select"
+          options={typographyScale.fontSize}
+          {...register('style.fontSize')}
+        />
+      </div>
+      
+      <CodePreview 
+        className="col-span-2 mt-4" 
+        code={previewStyles} 
+        language="css" 
+      />
+    </div>
+  ), [register, previewStyles, handleUpdate]);
+
+  const renderAdvancedTab = useMemo(() => (
+    <div className="p-4 space-y-4">
+      <PropertySection title="Conditional Logic">
+        <Input
+          label="Visibility Condition"
+          {...register('conditional.visible')}
+          placeholder="e.g. {formState.age > 18}"
+        />
+      </PropertySection>
+
+      <PropertySection title="Custom Validation">
+        <Textarea
+          label="Validation Rules"
+          {...register('validation.rules')}
+          rows={4}
+        />
+        <Input
+          label="Custom Error Message"
+          {...register('validation.message')}
+        />
+      </PropertySection>
+
+      <PropertySection title="Data Binding">
+        <Input
+          label="API Field Name"
+          {...register('dataBinding.field')}
+        />
+        <Input
+          label="Data Transformation"
+          {...register('dataBinding.transform')}
+        />
+      </PropertySection>
+    </div>
+  ), [register]);
 
   if (!selectedElement) {
     return (
-      <div className="flex flex-col h-full">
-        <div className="p-4 border-b">
-          <h2 className="font-medium">Properties</h2>
-        </div>
-        <div className="flex-grow flex items-center justify-center p-8 text-center text-muted-foreground">
-          <p>Select an element to edit its properties</p>
-        </div>
+      <div className="h-full flex items-center justify-center p-8 text-center">
+        <Icon name="select" className="h-8 w-8 mx-auto mb-4" />
+        <p className="text-muted-foreground">Select an element to edit properties</p>
       </div>
     );
   }
 
-  const handleContentChange = (content: string) => {
-    onUpdateElement(selectedElement.id, { content });
-  };
-
-  const handlePlaceholderChange = (placeholder: string) => {
-    onUpdateElement(selectedElement.id, { placeholder });
-  };
-
-  const handleRequiredChange = (required: boolean) => {
-    onUpdateElement(selectedElement.id, { required });
-  };
-
-  const handleStyleChange = (property: string, value: string) => {
-    const style = { ...selectedElement.style, [property]: value };
-    onUpdateElement(selectedElement.id, { style });
-  };
-
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-4 border-b">
-        <h2 className="font-medium">Properties</h2>
-        <div className="text-xs text-muted-foreground mt-1">
-          Editing: <span className="capitalize">{selectedElement.type}</span>
+    <div className="h-full flex flex-col">
+      <header className="p-4 border-b">
+        <div className="flex items-center gap-2">
+          <Badge variant="element-type">{selectedElement.type}</Badge>
+          <h3 className="font-semibold truncate">{selectedElement.name}</h3>
         </div>
-      </div>
-      
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-grow flex flex-col">
-        <TabsList className="grid grid-cols-5 mx-4 my-2">
-          <TabsTrigger value="content" className="h-8 text-xs">
-            <TextCursor className="h-3 w-3 mr-1" />
-            Content
+      </header>
+
+      <Tabs defaultValue="content" className="flex-1 overflow-auto">
+        <TabsList className="grid grid-cols-4 h-12 rounded-none">
+          <TabsTrigger value="content">
+            <Icon name="edit" className="mr-2" /> Content
           </TabsTrigger>
-          <TabsTrigger value="style" className="h-8 text-xs">
-            <Brush className="h-3 w-3 mr-1" />
-            Style
+          <TabsTrigger value="style">
+            <Icon name="palette" className="mr-2" /> Style
           </TabsTrigger>
-          <TabsTrigger value="layout" className="h-8 text-xs">
-            <Layout className="h-3 w-3 mr-1" />
-            Layout
+          <TabsTrigger value="advanced">
+            <Icon name="settings" className="mr-2" /> Advanced
           </TabsTrigger>
-          <TabsTrigger value="validation" className="h-8 text-xs">
-            <ClipboardCheck className="h-3 w-3 mr-1" />
-            Validate
-          </TabsTrigger>
-          <TabsTrigger value="a11y" className="h-8 text-xs">
-            <Accessibility className="h-3 w-3 mr-1" />
-            A11y
+          <TabsTrigger value="code">
+            <Icon name="code" className="mr-2" /> Code
           </TabsTrigger>
         </TabsList>
-        
-        <div className="flex-grow overflow-auto">
-          <TabsContent value="content" className="p-4 space-y-4 m-0">
-            {(selectedElement.type === "heading" || 
-              selectedElement.type === "paragraph" || 
-              selectedElement.type === "button" ||
-              selectedElement.type === "input" ||
-              selectedElement.type === "textarea" ||
-              selectedElement.type === "checkbox" ||
-              selectedElement.type === "radio" ||
-              selectedElement.type === "select") && (
-              <div className="space-y-2">
-                <Label htmlFor="element-content">Content/Label</Label>
-                <Input
-                  id="element-content"
-                  value={selectedElement.content || ""}
-                  onChange={(e) => handleContentChange(e.target.value)}
-                />
-              </div>
-            )}
-            
-            {(selectedElement.type === "input" || 
-              selectedElement.type === "textarea" || 
-              selectedElement.type === "select") && (
-              <div className="space-y-2">
-                <Label htmlFor="element-placeholder">Placeholder</Label>
-                <Input
-                  id="element-placeholder"
-                  value={selectedElement.placeholder || ""}
-                  onChange={(e) => handlePlaceholderChange(e.target.value)}
-                />
-              </div>
-            )}
-            
-            {(selectedElement.type === "input" || 
-              selectedElement.type === "textarea" || 
-              selectedElement.type === "checkbox" ||
-              selectedElement.type === "radio" ||
-              selectedElement.type === "select") && (
-              <div className="flex items-center justify-between">
-                <Label htmlFor="element-required">Required</Label>
-                <Switch
-                  id="element-required"
-                  checked={selectedElement.required || false}
-                  onCheckedChange={handleRequiredChange}
-                />
-              </div>
-            )}
-            
-            {selectedElement.type === "select" && (
-              <div className="space-y-2">
-                <Label htmlFor="element-options">Options (one per line)</Label>
-                <Textarea
-                  id="element-options"
-                  value={(selectedElement.options || []).join("\n")}
-                  onChange={(e) => {
-                    const options = e.target.value.split("\n").filter(opt => opt.trim() !== "");
-                    onUpdateElement(selectedElement.id, { options });
-                  }}
-                  rows={5}
-                />
-              </div>
-            )}
-          </TabsContent>
-          
-          <TabsContent value="style" className="p-4 space-y-4 m-0">
-            <div className="space-y-2">
-              <Label htmlFor="element-width">Width</Label>
-              <Select
-                value={selectedElement.style?.width || "100%"}
-                onValueChange={(value) => handleStyleChange("width", value)}
-              >
-                <SelectTrigger id="element-width">
-                  <SelectValue placeholder="Select width" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="100%">Full width</SelectItem>
-                  <SelectItem value="75%">75%</SelectItem>
-                  <SelectItem value="50%">50%</SelectItem>
-                  <SelectItem value="25%">25%</SelectItem>
-                  <SelectItem value="auto">Auto</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="element-font-size">Font Size</Label>
-              <Select
-                value={selectedElement.style?.fontSize || "1rem"}
-                onValueChange={(value) => handleStyleChange("fontSize", value)}
-              >
-                <SelectTrigger id="element-font-size">
-                  <SelectValue placeholder="Select font size" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0.875rem">Small</SelectItem>
-                  <SelectItem value="1rem">Medium</SelectItem>
-                  <SelectItem value="1.25rem">Large</SelectItem>
-                  <SelectItem value="1.5rem">X-Large</SelectItem>
-                  <SelectItem value="2rem">XX-Large</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="element-font-weight">Font Weight</Label>
-              <Select
-                value={selectedElement.style?.fontWeight || "normal"}
-                onValueChange={(value) => handleStyleChange("fontWeight", value)}
-              >
-                <SelectTrigger id="element-font-weight">
-                  <SelectValue placeholder="Select font weight" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="normal">Normal</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="bold">Bold</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="element-padding">Padding</Label>
-              <Select
-                value={selectedElement.style?.padding || "0.5rem"}
-                onValueChange={(value) => handleStyleChange("padding", value)}
-              >
-                <SelectTrigger id="element-padding">
-                  <SelectValue placeholder="Select padding" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">None</SelectItem>
-                  <SelectItem value="0.25rem">XS</SelectItem>
-                  <SelectItem value="0.5rem">S</SelectItem>
-                  <SelectItem value="1rem">M</SelectItem>
-                  <SelectItem value="1.5rem">L</SelectItem>
-                  <SelectItem value="2rem">XL</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="element-border-radius">Border Radius</Label>
-              <Select
-                value={selectedElement.style?.borderRadius || "0.375rem"}
-                onValueChange={(value) => handleStyleChange("borderRadius", value)}
-              >
-                <SelectTrigger id="element-border-radius">
-                  <SelectValue placeholder="Select border radius" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">None</SelectItem>
-                  <SelectItem value="0.125rem">XS</SelectItem>
-                  <SelectItem value="0.375rem">S</SelectItem>
-                  <SelectItem value="0.5rem">M</SelectItem>
-                  <SelectItem value="0.75rem">L</SelectItem>
-                  <SelectItem value="1rem">XL</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="element-text-color">Text Color</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="element-text-color"
-                  type="color"
-                  value={selectedElement.style?.textColor || "#000000"}
-                  onChange={(e) => handleStyleChange("textColor", e.target.value)}
-                  className="w-12 p-1 h-9"
-                />
-                <Input
-                  value={selectedElement.style?.textColor || ""}
-                  onChange={(e) => handleStyleChange("textColor", e.target.value)}
-                  placeholder="#000000"
-                  className="flex-grow"
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="element-background-color">Background Color</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="element-background-color"
-                  type="color"
-                  value={selectedElement.style?.backgroundColor || "#ffffff"}
-                  onChange={(e) => handleStyleChange("backgroundColor", e.target.value)}
-                  className="w-12 p-1 h-9"
-                />
-                <Input
-                  value={selectedElement.style?.backgroundColor || ""}
-                  onChange={(e) => handleStyleChange("backgroundColor", e.target.value)}
-                  placeholder="transparent"
-                  className="flex-grow"
-                />
-              </div>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="layout" className="p-4 space-y-4 m-0">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Position</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="position-x" className="text-xs">X Position</Label>
-                    <Input
-                      id="position-x"
-                      type="number"
-                      value={selectedElement.position?.x || 0}
-                      onChange={(e) => {
-                        const position = { 
-                          ...selectedElement.position, 
-                          x: parseInt(e.target.value) || 0 
-                        };
-                        onUpdateElement(selectedElement.id, { position });
-                      }}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="position-y" className="text-xs">Y Position</Label>
-                    <Input
-                      id="position-y"
-                      type="number"
-                      value={selectedElement.position?.y || 0}
-                      onChange={(e) => {
-                        const position = { 
-                          ...selectedElement.position, 
-                          y: parseInt(e.target.value) || 0 
-                        };
-                        onUpdateElement(selectedElement.id, { position });
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="position-type">Position Type</Label>
-                <Select
-                  value={selectedElement.position?.type || "static"}
-                  onValueChange={(value) => {
-                    const position = { 
-                      ...selectedElement.position, 
-                      type: value as "static" | "relative" | "absolute" | "fixed" 
-                    };
-                    onUpdateElement(selectedElement.id, { position });
-                  }}
-                >
-                  <SelectTrigger id="position-type">
-                    <SelectValue placeholder="Select position type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="static">Static</SelectItem>
-                    <SelectItem value="relative">Relative</SelectItem>
-                    <SelectItem value="absolute">Absolute</SelectItem>
-                    <SelectItem value="fixed">Fixed</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>Responsive Visibility</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="flex items-center space-x-2">
-                    <Switch 
-                      id="hide-mobile" 
-                      checked={!selectedElement.position?.hideMobile}
-                      onCheckedChange={(checked) => {
-                        const position = { 
-                          ...selectedElement.position, 
-                          hideMobile: !checked 
-                        };
-                        onUpdateElement(selectedElement.id, { position });
-                      }}
-                    />
-                    <Label htmlFor="hide-mobile" className="text-xs">Mobile</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch 
-                      id="hide-tablet" 
-                      checked={!selectedElement.position?.hideTablet}
-                      onCheckedChange={(checked) => {
-                        const position = { 
-                          ...selectedElement.position, 
-                          hideTablet: !checked 
-                        };
-                        onUpdateElement(selectedElement.id, { position });
-                      }}
-                    />
-                    <Label htmlFor="hide-tablet" className="text-xs">Tablet</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch 
-                      id="hide-desktop" 
-                      checked={!selectedElement.position?.hideDesktop}
-                      onCheckedChange={(checked) => {
-                        const position = { 
-                          ...selectedElement.position, 
-                          hideDesktop: !checked 
-                        };
-                        onUpdateElement(selectedElement.id, { position });
-                      }}
-                    />
-                    <Label htmlFor="hide-desktop" className="text-xs">Desktop</Label>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="validation" className="p-4 space-y-4 m-0">
-            {(selectedElement.type === "input" || 
-              selectedElement.type === "text" || 
-              selectedElement.type === "textarea") && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="min-length">Minimum Length</Label>
-                  <Input
-                    id="min-length"
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={selectedElement.minLength || ""}
-                    onChange={(e) => {
-                      const value = e.target.value ? parseInt(e.target.value) : undefined;
-                      onUpdateElement(selectedElement.id, { minLength: value });
-                    }}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="max-length">Maximum Length</Label>
-                  <Input
-                    id="max-length"
-                    type="number"
-                    min="0"
-                    placeholder="Unlimited"
-                    value={selectedElement.maxLength || ""}
-                    onChange={(e) => {
-                      const value = e.target.value ? parseInt(e.target.value) : undefined;
-                      onUpdateElement(selectedElement.id, { maxLength: value });
-                    }}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="validation-pattern">Pattern (Regex)</Label>
-                  <Input
-                    id="validation-pattern"
-                    placeholder="e.g. [A-Za-z]+"
-                    value={selectedElement.pattern || ""}
-                    onChange={(e) => {
-                      onUpdateElement(selectedElement.id, { pattern: e.target.value });
-                    }}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="custom-validation">Custom Validation</Label>
-                  <Textarea
-                    id="custom-validation"
-                    placeholder="e.g. value.includes('@') && value.includes('.')"
-                    value={selectedElement.customValidation || ""}
-                    onChange={(e) => {
-                      onUpdateElement(selectedElement.id, { customValidation: e.target.value });
-                    }}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    JavaScript expression that returns true/false. The variable 'value' contains the input value.
-                  </p>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="flex items-center space-x-2">
-                    <Switch 
-                      id="validate-on-blur" 
-                      checked={selectedElement.validateOnBlur || false}
-                      onCheckedChange={(checked) => {
-                        onUpdateElement(selectedElement.id, { validateOnBlur: checked });
-                      }}
-                    />
-                    <Label htmlFor="validate-on-blur">Validate on Blur</Label>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Switch 
-                      id="validate-on-change" 
-                      checked={selectedElement.validateOnChange || false}
-                      onCheckedChange={(checked) => {
-                        onUpdateElement(selectedElement.id, { validateOnChange: checked });
-                      }}
-                    />
-                    <Label htmlFor="validate-on-change">Validate on Change</Label>
-                  </div>
-                </div>
-              </>
-            )}
-            
-            {selectedElement.type === "number" && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="min-value">Minimum Value</Label>
-                  <Input
-                    id="min-value"
-                    type="number"
-                    placeholder="No minimum"
-                    value={selectedElement.min ?? ""}
-                    onChange={(e) => {
-                      const value = e.target.value ? parseFloat(e.target.value) : undefined;
-                      onUpdateElement(selectedElement.id, { min: value });
-                    }}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="max-value">Maximum Value</Label>
-                  <Input
-                    id="max-value"
-                    type="number"
-                    placeholder="No maximum"
-                    value={selectedElement.max ?? ""}
-                    onChange={(e) => {
-                      const value = e.target.value ? parseFloat(e.target.value) : undefined;
-                      onUpdateElement(selectedElement.id, { max: value });
-                    }}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="step-value">Step</Label>
-                  <Input
-                    id="step-value"
-                    type="number"
-                    min="0"
-                    step="any"
-                    placeholder="1"
-                    value={selectedElement.step ?? ""}
-                    onChange={(e) => {
-                      const value = e.target.value ? parseFloat(e.target.value) : undefined;
-                      onUpdateElement(selectedElement.id, { step: value });
-                    }}
-                  />
-                </div>
-              </>
-            )}
-            
-            {(selectedElement.type !== "input" && 
-              selectedElement.type !== "text" && 
-              selectedElement.type !== "textarea" && 
-              selectedElement.type !== "number") && (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>Validation options are not available for this element type.</p>
-              </div>
-            )}
-          </TabsContent>
-          
-          <TabsContent value="a11y" className="p-4 space-y-4 m-0">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="aria-label">ARIA Label</Label>
-                <Input
-                  id="aria-label"
-                  placeholder="Descriptive label for screen readers"
-                  value={selectedElement.ariaLabel || ""}
-                  onChange={(e) => {
-                    onUpdateElement(selectedElement.id, { ariaLabel: e.target.value });
-                  }}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Provides an accessible name for screen readers when visual label is not present.
-                </p>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="aria-description">ARIA Description</Label>
-                <Textarea
-                  id="aria-description"
-                  placeholder="Additional information about this element"
-                  value={selectedElement.ariaDescription || ""}
-                  onChange={(e) => {
-                    onUpdateElement(selectedElement.id, { ariaDescription: e.target.value });
-                  }}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Provides additional descriptive information for screen readers.
-                </p>
-              </div>
-              
-              <div className="space-y-2">
-                <Label>ARIA Role</Label>
-                <Select
-                  value={selectedElement.role || ""}
-                  onValueChange={(value) => {
-                    onUpdateElement(selectedElement.id, { role: value });
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select ARIA role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Default</SelectItem>
-                    <SelectItem value="button">Button</SelectItem>
-                    <SelectItem value="checkbox">Checkbox</SelectItem>
-                    <SelectItem value="link">Link</SelectItem>
-                    <SelectItem value="textbox">Textbox</SelectItem>
-                    <SelectItem value="radio">Radio</SelectItem>
-                    <SelectItem value="heading">Heading</SelectItem>
-                    <SelectItem value="img">Image</SelectItem>
-                    <SelectItem value="region">Region</SelectItem>
-                    <SelectItem value="navigation">Navigation</SelectItem>
-                    <SelectItem value="form">Form</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Defines the type of element to assistive technologies.
-                </p>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <Switch 
-                  id="tab-index" 
-                  checked={selectedElement.tabIndex !== undefined}
-                  onCheckedChange={(checked) => {
-                    onUpdateElement(selectedElement.id, { 
-                      tabIndex: checked ? 0 : undefined 
-                    });
-                  }}
-                />
-                <Label htmlFor="tab-index">Include in Tab Order</Label>
-              </div>
-            </div>
+
+        <div className="h-[calc(100vh-180px)] overflow-y-auto">
+          <TabsContent value="content">{renderContentTab}</TabsContent>
+          <TabsContent value="style">{renderStyleTab}</TabsContent>
+          <TabsContent value="advanced">{renderAdvancedTab}</TabsContent>
+          <TabsContent value="code">
+            <CodePreview
+              code={JSON.stringify(selectedElement, null, 2)}
+              language="json"
+              className="p-4"
+            />
           </TabsContent>
         </div>
       </Tabs>
+
+      <footer className="p-4 border-t flex justify-between">
+        <Button variant="ghost" onClick={() => onUpdate({ visible: !selectedElement.visible })}>
+          <Icon name={selectedElement.visible ? "eye" : "eye-off"} className="mr-2" />
+          {selectedElement.visible ? "Hide" : "Show"}
+        </Button>
+        <Button onClick={() => trigger()}>
+          <Icon name="save" className="mr-2" /> Save Changes
+        </Button>
+      </footer>
     </div>
   );
 };
