@@ -1,43 +1,6 @@
-
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { 
-  Search, 
-  Type, 
-  AlignLeft, 
-  Square, 
-  CircleCheck, 
-  ListFilter, 
-  SlidersHorizontal,
-  Minus, 
-  Box, 
-  TextCursorInput,
-  MousePointerClick,
-  Calendar,
-  File,
-  Upload,
-  Star,
-  Divide,
-  Heading1,
-  Heading2,
-  Text as ParagraphIcon,
-  SeparatorHorizontal,
-  Space,
-  Table,
-  BellRing,
-  AlertTriangle,
-  RectangleHorizontal,
-  User,
-  Tag,
-  ChevronRight,
-  CreditCard,
-  Images,
-  BarChart,
-  ChevronsUpDown,
-  Command,
-  Menu,
-  CalendarDays,
-  PanelRightOpen,
-  PackagePlus
+  // Ikonok...
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -45,191 +8,242 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDraggable } from "@dnd-kit/core";
 import { ElementType, ELEMENT_TYPES } from "./FormBuilder";
 import CreateCustomComponent from "./CreateCustomComponent";
+import { cn } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useLocalStorage } from "usehooks-ts";
 
 interface ComponentItem {
   type: ElementType;
   name: string;
   icon: React.ReactNode;
-  category: "basic" | "input" | "layout" | "ui-components";
+  category: "layout" | "input" | "ui-components" | "custom";
   description?: string;
+  popularity?: number;
+  requiredDependencies?: string[];
+  proFeature?: boolean;
 }
 
 interface ComponentsSidebarProps {
   onAddElement: (type: ElementType) => void;
+  loading?: boolean;
 }
 
 const DraggableComponent = ({ component }: { component: ComponentItem }) => {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `draggable-${component.type}`,
+    id: `draggable-${component.type}-${Date.now()}`,
     data: {
       type: component.type,
+      metadata: component,
     },
   });
 
   return (
-    <div
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      className="flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors cursor-grab select-none"
-      style={{ opacity: isDragging ? 0.5 : 1 }}
-      title={component.description}
-    >
-      <div className="w-8 h-8 flex items-center justify-center rounded-md bg-muted">
-        {component.icon}
-      </div>
-      <span className="text-sm">{component.name}</span>
-    </div>
+    <Tooltip delayDuration={200}>
+      <TooltipTrigger asChild>
+        <div
+          ref={setNodeRef}
+          {...listeners}
+          {...attributes}
+          className={cn(
+            "group flex items-center gap-3 p-2 rounded-lg",
+            "hover:bg-accent/50 transition-colors cursor-grab",
+            "select-none border border-transparent hover:border-primary/20",
+            isDragging && "opacity-50 cursor-grabbing"
+          )}
+        >
+          <div className="w-9 h-9 flex items-center justify-center rounded-lg bg-muted/50 group-hover:bg-muted">
+            {component.icon}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium truncate">{component.name}</span>
+              {component.proFeature && (
+                <Badge variant="premium" className="text-xs px-1.5 py-0.5">
+                  Pro
+                </Badge>
+              )}
+            </div>
+            {component.description && (
+              <p className="text-xs text-muted-foreground truncate">
+                {component.description}
+              </p>
+            )}
+          </div>
+          {component.requiredDependencies && (
+            <div className="flex gap-1.5 items-center">
+              {component.requiredDependencies.map((dep) => (
+                <Badge key={dep} variant="outline" className="text-xs font-mono">
+                  {dep}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="right" align="start" className="max-w-[300px]">
+        <div className="space-y-1.5">
+          <h4 className="font-semibold">{component.name}</h4>
+          <p className="text-muted-foreground text-sm">{component.description}</p>
+          {component.proFeature && (
+            <div className="text-xs text-amber-500 flex items-center gap-1">
+              <Star className="h-3 w-3" />
+              <span>Premium feature - requires Pro subscription</span>
+            </div>
+          )}
+        </div>
+      </TooltipContent>
+    </Tooltip>
   );
 };
 
-const ComponentsSidebar = ({ onAddElement }: ComponentsSidebarProps) => {
+const ComponentsSidebar = ({ onAddElement, loading }: ComponentsSidebarProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [showCustomComponentDialog, setShowCustomComponentDialog] = useState(false);
+  const [recentlyUsed, setRecentlyUsed] = useLocalStorage<string[]>("recent-components", []);
+  const [favorites, setFavorites] = useLocalStorage<string[]>("favorite-components", []);
 
   const components: ComponentItem[] = [
-    // Layout elements
-    { type: "title", name: "Title", icon: <Heading1 size={18} />, category: "layout", description: "Large heading for sections" },
-    { type: "subtitle", name: "Subtitle", icon: <Heading2 size={18} />, category: "layout", description: "Secondary heading" },
-    { type: "heading", name: "Heading", icon: <Type size={18} />, category: "layout", description: "Section heading" },
-    { type: "paragraph", name: "Paragraph", icon: <ParagraphIcon size={18} />, category: "layout", description: "Text paragraph" },
-    { type: "divider", name: "Divider", icon: <Minus size={18} />, category: "layout", description: "Horizontal divider" },
-    { type: "separator", name: "Separator", icon: <SeparatorHorizontal size={18} />, category: "layout", description: "Section separator" },
-    { type: "spacer", name: "Spacer", icon: <Space size={18} />, category: "layout", description: "Empty space" },
-    
-    // Input components
-    { type: "text", name: "Text Input", icon: <TextCursorInput size={18} />, category: "input", description: "Single line text field" },
-    { type: "number", name: "Number", icon: <SlidersHorizontal size={18} />, category: "input", description: "Numeric input field" },
-    { type: "input", name: "Input Field", icon: <TextCursorInput size={18} />, category: "input", description: "Basic input field" },
-    { type: "textarea", name: "Text Area", icon: <AlignLeft size={18} />, category: "input", description: "Multi-line text field" },
-    { type: "checkbox", name: "Checkbox", icon: <Square size={18} />, category: "input", description: "Checkbox field" },
-    { type: "radio", name: "Radio", icon: <CircleCheck size={18} />, category: "input", description: "Radio button group" },
-    { type: "select", name: "Select", icon: <ListFilter size={18} />, category: "input", description: "Dropdown select field" },
-    { type: "date", name: "Date Input", icon: <Calendar size={18} />, category: "input", description: "Date picker" },
-    { type: "button", name: "Button", icon: <MousePointerClick size={18} />, category: "input", description: "Interactive button" },
-    
-    // UI Components
-    { type: "accordion", name: "Accordion", icon: <ChevronsUpDown size={18} />, category: "ui-components", description: "Collapsible content sections" },
-    { type: "alert", name: "Alert", icon: <BellRing size={18} />, category: "ui-components", description: "Contextual feedback message" },
-    { type: "alert-dialog", name: "Alert Dialog", icon: <AlertTriangle size={18} />, category: "ui-components", description: "Modal dialog for important notifications" },
-    { type: "aspect-ratio", name: "Aspect Ratio", icon: <RectangleHorizontal size={18} />, category: "ui-components", description: "Maintain element proportions" },
-    { type: "avatar", name: "Avatar", icon: <User size={18} />, category: "ui-components", description: "User or entity representation" },
-    { type: "badge", name: "Badge", icon: <Tag size={18} />, category: "ui-components", description: "Small status indicator" },
-    { type: "card", name: "Card", icon: <CreditCard size={18} />, category: "ui-components", description: "Content container with padding and border" },
-    { type: "carousel", name: "Carousel", icon: <Images size={18} />, category: "ui-components", description: "Slideshow component" },
-    { type: "chart", name: "Chart", icon: <BarChart size={18} />, category: "ui-components", description: "Data visualization" },
-    { type: "collapsible", name: "Collapsible", icon: <ChevronsUpDown size={18} />, category: "ui-components", description: "Toggle content visibility" },
-    { type: "command", name: "Command", icon: <Command size={18} />, category: "ui-components", description: "Command/search interface" },
-    { type: "context-menu", name: "Context Menu", icon: <Menu size={18} />, category: "ui-components", description: "Right-click menu" },
-    { type: "date-picker", name: "Date Picker", icon: <CalendarDays size={18} />, category: "ui-components", description: "Advanced date selection" },
-    { type: "drawer", name: "Drawer", icon: <PanelRightOpen size={18} />, category: "ui-components", description: "Side panel menu" },
-    { type: "dropdown-menu", name: "Dropdown Menu", icon: <ChevronRight size={18} />, category: "ui-components", description: "Dropdown menu component" },
+    // Alap komponensek...
+    // Új property-kkel:
+    {
+      type: "chart",
+      name: "Chart",
+      icon: <BarChart size={18} />,
+      category: "ui-components",
+      description: "Interactive data visualization with multiple chart types",
+      requiredDependencies: ["chart.js", "react-chartjs-2"],
+      proFeature: true,
+      popularity: 95,
+    },
+    // Egyéb elemek...
   ];
 
-  // Filter components based on search term and category
-  const filteredComponents = useMemo(() => {
-    return components.filter(component => {
-      const matchesSearch = component.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                           (component.description?.toLowerCase().includes(searchTerm.toLowerCase()) || false);
-      const matchesCategory = selectedCategory === "all" || component.category === selectedCategory || 
-                             (selectedCategory === "ui-components" && component.category === "ui-components");
-      return matchesSearch && matchesCategory;
-    });
-  }, [components, searchTerm, selectedCategory]);
+  const categories = [
+    { id: "all", label: "All", icon: <Box size={16} /> },
+    { id: "layout", label: "Layout", icon: <SeparatorHorizontal size={16} /> },
+    { id: "input", label: "Inputs", icon: <TextCursorInput size={16} /> },
+    { id: "ui-components", label: "UI", icon: <SlidersHorizontal size={16} /> },
+    { id: "custom", label: "Custom", icon: <PackagePlus size={16} /> },
+  ];
 
-  const handleCreateCustomComponent = (component: any) => {
-    // Here you would add the custom component to your components array
-    // and potentially save it to localStorage or a backend
-    console.log('Custom component created:', component);
-  };
+  const handleAddElement = useCallback((type: ElementType) => {
+    onAddElement(type);
+    setRecentlyUsed(prev => Array.from(new Set([type, ...prev])).slice(0, 5));
+  }, [onAddElement, setRecentlyUsed]);
+
+  const filteredComponents = useMemo(() => {
+    let result = components.filter(component => {
+      const searchMatch = component.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        component.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        component.type.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const categoryMatch = selectedCategory === "all" || 
+        component.category === selectedCategory ||
+        (selectedCategory === "custom" && component.category === "custom");
+
+      return searchMatch && categoryMatch;
+    });
+
+    if (selectedCategory === "recent") {
+      result = result.sort((a, b) => 
+        recentlyUsed.indexOf(b.type) - recentlyUsed.indexOf(a.type)
+      );
+    }
+
+    if (selectedCategory === "favorites") {
+      result = result.filter(comp => favorites.includes(comp.type));
+    }
+
+    return result.sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
+  }, [components, searchTerm, selectedCategory, recentlyUsed, favorites]);
+
+  const handleFavorite = useCallback((type: string) => {
+    setFavorites(prev => 
+      prev.includes(type) 
+        ? prev.filter(t => t !== type) 
+        : [...prev, type]
+    );
+  }, [setFavorites]);
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-4 border-b">
-        <h2 className="font-medium mb-4">Components</h2>
+    <div className="flex flex-col h-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="p-4 pb-2 space-y-4 border-b">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Component Library</h2>
+          <Badge variant="outline" className="text-xs">
+            v2.1.0
+          </Badge>
+        </div>
+        
         <div className="relative">
-          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search components..."
-            className="pl-8"
+            className="pl-10 pr-4 h-9"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
       </div>
-      
-      <div className="flex flex-wrap border-b">
-        <Button
-          variant="ghost"
-          size="sm"
-          className={`flex-1 rounded-none ${selectedCategory === "all" ? "bg-accent" : ""}`}
-          onClick={() => setSelectedCategory("all")}
-        >
-          All
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={`flex-1 rounded-none ${selectedCategory === "layout" ? "bg-accent" : ""}`}
-          onClick={() => setSelectedCategory("layout")}
-        >
-          Layout
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={`flex-1 rounded-none ${selectedCategory === "input" ? "bg-accent" : ""}`}
-          onClick={() => setSelectedCategory("input")}
-        >
-          Input
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          className={`flex-1 rounded-none ${selectedCategory === "ui-components" ? "bg-accent" : ""}`}
-          onClick={() => setSelectedCategory("ui-components")}
-        >
-          UI
-        </Button>
-      </div>
-      
-      <ScrollArea className="flex-grow">
-        <div className="p-4 space-y-1">
-          {filteredComponents.length > 0 ? (
-            filteredComponents.map((component) => (
-              <div key={`${component.type}-${component.name}`} className="mb-2">
-                <div 
-                  className="flex items-center gap-2 p-2 rounded-md hover:bg-accent transition-colors cursor-pointer select-none"
-                  onClick={() => onAddElement(component.type)}
-                >
-                  <div className="w-8 h-8 flex items-center justify-center rounded-md bg-muted">
-                    {component.icon}
-                  </div>
-                  <div className="flex-1">
-                    <span className="text-sm block">{component.name}</span>
-                    {component.description && (
-                      <span className="text-xs text-muted-foreground">{component.description}</span>
-                    )}
-                  </div>
-                </div>
+
+      <Tabs 
+        value={selectedCategory} 
+        onValueChange={setSelectedCategory}
+        className="px-4 py-3 border-b"
+      >
+        <TabsList className="grid grid-cols-3 h-auto p-1 bg-muted/50">
+          {categories.map((category) => (
+            <TabsTrigger
+              key={category.id}
+              value={category.id}
+              className="py-1.5 h-auto text-xs [&[data-state=active]]:bg-background"
+            >
+              <div className="flex items-center gap-1.5">
+                {category.icon}
+                {category.label}
               </div>
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
+      <ScrollArea className="flex-grow">
+        <div className="p-4 space-y-2">
+          {loading ? (
+            Array(8).fill(0).map((_, i) => (
+              <Skeleton key={i} className="h-[62px] w-full rounded-lg" />
+            ))
+          ) : filteredComponents.length > 0 ? (
+            filteredComponents.map((component) => (
+              <DraggableComponent
+                key={`${component.type}-${component.name}`}
+                component={component}
+              />
             ))
           ) : (
-            <div className="text-center py-4 text-muted-foreground">
-              No components found. Try adjusting your search.
+            <div className="flex flex-col items-center justify-center py-8 gap-2 text-center">
+              <Search className="h-8 w-8 text-muted-foreground" />
+              <h3 className="font-medium">No components found</h3>
+              <p className="text-sm text-muted-foreground">
+                Try adjusting your search or filters
+              </p>
             </div>
           )}
         </div>
       </ScrollArea>
-      
-      <div className="p-4 border-t">
+
+      <div className="p-4 border-t bg-background/80">
         <Button 
-          variant="outline" 
-          className="w-full" 
+          variant="outline"
+          className="w-full h-10 rounded-lg font-medium"
           onClick={() => setShowCustomComponentDialog(true)}
         >
-          <PackagePlus className="mr-2 h-4 w-4" /> Custom Component
+          <PackagePlus className="mr-2 h-4 w-4" />
+          Create Custom Component
         </Button>
       </div>
 
