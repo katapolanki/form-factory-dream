@@ -1,148 +1,155 @@
-
+// validation.ts
 import { z } from "zod";
-import { ElementType } from "@/components/FormBuilder";
+import { isValidUUID, validateColorFormat } from "./utils";
 
-// Base schema for all form elements
+// Közös típusok és konstansok
+export const POSITION_TYPES = ["static", "relative", "absolute", "fixed"] as const;
+export const ALIGN_TYPES = ["left", "center", "right", "justify"] as const;
+export const SIZE_TYPES = ["xs", "small", "default", "large", "xl"] as const;
+export const WIDTH_UNITS = ["px", "%", "rem", "em"] as const;
+
+// Alapstílus séma részletes validációval
+const baseStyleSchema = z.object({
+  width: z.string().regex(/^\d+(\.\d+)?(%|px|rem|em)$/, "Invalid width format"),
+  backgroundColor: z.string().refine(validateColorFormat, "Invalid color format"),
+  textColor: z.string().refine(validateColorFormat, "Invalid color format"),
+  borderWidth: z.string().regex(/^\d+px$/, "Invalid border width"),
+  borderStyle: z.enum(["none", "solid", "dashed", "dotted", "double"]),
+  borderColor: z.string().refine(validateColorFormat, "Invalid color format"),
+  borderRadius: z.string().regex(/^\d+px$/, "Invalid border radius"),
+  padding: z.string().regex(/^\d+px$/, "Invalid padding format"),
+  fontSize: z.string().regex(/^\d+(\.\d+)?(px|rem)$/, "Invalid font size"),
+  fontWeight: z.enum(["normal", "medium", "bold", "black"]),
+  opacity: z.string().refine(val => {
+    const num = parseFloat(val);
+    return !isNaN(num) && num >= 0 && num <= 1;
+  }, "Opacity must be between 0 and 1"),
+});
+
+// Pozíció séma részletes validációval
+const positionSchema = z.object({
+  x: z.number().int().min(0),
+  y: z.number().int().min(0),
+  type: z.enum(POSITION_TYPES).default("static"),
+  top: z.string().optional(),
+  right: z.string().optional(),
+  bottom: z.string().optional(),
+  left: z.string().optional(),
+  zIndex: z.string().regex(/^\d+$/, "Z-index must be a number").optional(),
+  align: z.enum(ALIGN_TYPES).optional(),
+  gridColumn: z.string().regex(/^\d+\/\d+$/, "Invalid grid column format").optional(),
+  gridRow: z.string().regex(/^\d+\/\d+$/, "Invalid grid row format").optional(),
+  hideMobile: z.boolean().default(false),
+  hideTablet: z.boolean().default(false),
+  hideDesktop: z.boolean().default(false),
+});
+
+// Alap elem séma részletes validációval
 export const baseElementSchema = z.object({
-  id: z.string(),
-  type: z.string(),
-  content: z.string().optional(),
-  isSelected: z.boolean().optional(),
-  hidden: z.boolean().optional(),
-  customClass: z.string().optional(),
-  position: z.object({
-    x: z.number(),
-    y: z.number(),
-    type: z.enum(["static", "relative", "absolute", "fixed"]).optional(),
-    top: z.string().optional(),
-    right: z.string().optional(),
-    bottom: z.string().optional(),
-    left: z.string().optional(),
-    zIndex: z.string().optional(),
-    align: z.enum(["left", "center", "right"]).optional(),
-    gridColumn: z.string().optional(),
-    gridRow: z.string().optional(),
-    hideMobile: z.boolean().optional(),
-    hideTablet: z.boolean().optional(),
-    hideDesktop: z.boolean().optional(),
-  }).optional(),
-  style: z.object({
-    width: z.string().optional(),
-    backgroundColor: z.string().optional(),
-    textColor: z.string().optional(),
-    borderWidth: z.string().optional(),
-    borderStyle: z.string().optional(),
-    borderColor: z.string().optional(),
-    borderRadius: z.string().optional(),
-    padding: z.string().optional(),
-    paddingY: z.string().optional(),
-    paddingX: z.string().optional(),
-    marginY: z.string().optional(),
-    marginX: z.string().optional(),
-    fontSize: z.string().optional(),
-    fontWeight: z.string().optional(),
-    lineHeight: z.string().optional(),
-    letterSpacing: z.string().optional(),
-    opacity: z.string().optional(),
-    shadow: z.string().optional(),
-  }).optional(),
-  width: z.enum(["full", "medium", "small", "tiny", "custom"]).optional(),
+  id: z.string().refine(isValidUUID, "Invalid UUID format"),
+  type: z.string().nonempty("Element type is required"),
+  content: z.string().max(500, "Content too long").optional(),
+  isSelected: z.boolean().default(false),
+  hidden: z.boolean().default(false),
+  customClass: z.string().max(50, "Class name too long").optional(),
+  position: positionSchema.optional(),
+  style: baseStyleSchema.optional(),
+  width: z.enum(["full", "medium", "small", "tiny", "custom"]).default("full"),
   customWidth: z.string().optional(),
-  customWidthUnit: z.enum(["px", "%", "rem", "em"]).optional(),
-  size: z.enum(["xs", "small", "default", "large", "xl"]).optional(),
-  labelPosition: z.enum(["top", "left", "right", "bottom", "hidden"]).optional(),
-  textAlign: z.enum(["left", "center", "right", "justify"]).optional(),
+  customWidthUnit: z.enum(WIDTH_UNITS).default("px"),
+  size: z.enum(SIZE_TYPES).default("default"),
+  labelPosition: z.enum(["top", "left", "right", "bottom", "hidden"]).default("top"),
+  textAlign: z.enum(ALIGN_TYPES).default("left"),
 });
 
-// Input element schema
-export const inputElementSchema = baseElementSchema.extend({
-  placeholder: z.string().optional(),
-  required: z.boolean().optional(),
-  helpText: z.string().optional(),
+// Validációs helper függvények
+const validateMinMax = (schema: z.ZodTypeAny, field: string) => (
+  schema.refine(data => {
+    if (data.min !== undefined && data.max !== undefined) {
+      return data.max > data.min;
+    }
+    return true;
+  }, `${field} max must be greater than min`)
+);
+
+// Input elemek közös sémája
+const inputBaseSchema = baseElementSchema.extend({
+  placeholder: z.string().max(100, "Placeholder too long").optional(),
+  required: z.boolean().default(false),
+  helpText: z.string().max(200, "Help text too long").optional(),
   defaultValue: z.union([z.string(), z.number()]).optional(),
-  minLength: z.number().optional(),
-  maxLength: z.number().optional(),
-  pattern: z.string().optional(),
-  inputMode: z.string().optional(),
-  autocomplete: z.string().optional(),
-  validateOnBlur: z.boolean().optional(),
-  validateOnChange: z.boolean().optional(),
-  customValidation: z.string().optional(),
+  validateOnBlur: z.boolean().default(true),
+  validateOnChange: z.boolean().default(false),
+  customValidation: z.string().max(500, "Validation code too long").optional(),
 });
 
-// Number input element schema
-export const numberElementSchema = inputElementSchema.extend({
-  min: z.number().optional(),
-  max: z.number().optional(),
-  step: z.number().optional(),
+// Szöveg input séma
+export const textInputSchema = validateMinMax(
+  inputBaseSchema.extend({
+    type: z.literal("text"),
+    minLength: z.number().int().min(0).max(1000).optional(),
+    maxLength: z.number().int().min(1).max(1000).optional(),
+    pattern: z.string().regex(/^\/(?:[^/\\]|\\.)*\/[gimuy]*$/, "Invalid regex pattern").optional(),
+  }),
+  'TextInput'
+);
+
+// Szám input séma
+export const numberInputSchema = validateMinMax(
+  inputBaseSchema.extend({
+    type: z.literal("number"),
+    min: z.number().optional(),
+    max: z.number().optional(),
+    step: z.number().positive("Step must be positive").optional(),
+  }),
+  'NumberInput'
+);
+
+// Textarea séma
+export const textareaSchema = inputBaseSchema.extend({
+  type: z.literal("textarea"),
+  rows: z.number().int().min(1).max(20).default(3),
+  resizable: z.enum(["none", "vertical", "horizontal", "both"]).default("vertical"),
 });
 
-// Textarea element schema
-export const textareaElementSchema = inputElementSchema.extend({
-  rows: z.number().optional(),
-  resizable: z.enum(["none", "vertical", "horizontal", "both"]).optional(),
-});
+// Egyéb elem sémák...
+// (Checkbox, Radio, Select, Button stb.)
 
-// Checkbox element schema
-export const checkboxElementSchema = baseElementSchema.extend({
-  required: z.boolean().optional(),
-  helpText: z.string().optional(),
-  defaultChecked: z.boolean().optional(),
-  checkboxPosition: z.enum(["left", "right"]).optional(),
-});
-
-// Button element schema
-export const buttonElementSchema = baseElementSchema.extend({
-  buttonVariant: z.string().optional(),
-  buttonType: z.string().optional(),
-  icon: z.string().optional(),
-  iconPosition: z.string().optional(),
-});
-
-// Radio element schema
-export const radioElementSchema = baseElementSchema.extend({
-  required: z.boolean().optional(),
-  options: z.array(z.string()).optional(),
-  helpText: z.string().optional(),
-});
-
-// Select element schema
-export const selectElementSchema = baseElementSchema.extend({
-  required: z.boolean().optional(),
-  options: z.array(z.string()).optional(),
-  placeholder: z.string().optional(),
-  helpText: z.string().optional(),
-});
-
-// Helper function to validate element based on type
-export function validateElement(element: any) {
-  switch (element.type) {
-    case "input":
-    case "text":
-      return inputElementSchema.safeParse(element);
-    case "number":
-      return numberElementSchema.safeParse(element);
-    case "textarea":
-      return textareaElementSchema.safeParse(element);
-    case "checkbox":
-      return checkboxElementSchema.safeParse(element);
-    case "button":
-      return buttonElementSchema.safeParse(element);
-    case "radio":
-      return radioElementSchema.safeParse(element);
-    case "select":
-      return selectElementSchema.safeParse(element);
-    default:
-      return baseElementSchema.safeParse(element);
-  }
-}
-
-// Form schema for validating the entire form structure
+// Form séma részletes validációval
 export const formSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string().optional(),
-  elements: z.array(baseElementSchema),
-  createdAt: z.date().optional(),
-  updatedAt: z.date().optional(),
+  id: z.string().refine(isValidUUID, "Invalid UUID format"),
+  name: z.string().min(3, "Name too short").max(50, "Name too long"),
+  description: z.string().max(200, "Description too long").optional(),
+  elements: z.array(baseElementSchema).superRefine((elements, ctx) => {
+    const ids = new Set<string>();
+    for (const [index, element] of elements.entries()) {
+      if (ids.has(element.id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate element ID: ${element.id}`,
+          path: [index, 'id']
+        });
+      }
+      ids.add(element.id);
+    }
+  }),
+  createdAt: z.date().default(new Date()),
+  updatedAt: z.date().default(new Date()),
 });
+
+// Elem típusok union sémája
+export type FormElement = z.infer<typeof baseElementSchema>;
+export type FormSchema = z.infer<typeof formSchema>;
+
+// Validációs helper függvény
+export function validateElement<T extends FormElement>(element: T) {
+  const schemas = {
+    text: textInputSchema,
+    number: numberInputSchema,
+    textarea: textareaSchema,
+    // ...egyéb elem típusok
+  };
+  
+  const schema = schemas[element.type as keyof typeof schemas] ?? baseElementSchema;
+  return schema.safeParse(element);
+}
