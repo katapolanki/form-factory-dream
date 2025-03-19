@@ -34,6 +34,51 @@ import FormCanvas from "@/components/FormCanvas";
 import FormPreview from "@/components/FormPreview";
 
 // Define form element types
+export const ELEMENT_TYPES = {
+  // Layout elements
+  TITLE: "title",
+  SUBTITLE: "subtitle",
+  PARAGRAPH: "paragraph",
+  SEPARATOR: "separator",
+  SPACER: "spacer",
+  HEADING: "heading",
+  DIVIDER: "divider",
+
+  // Form elements
+  TEXT: "text",
+  NUMBER: "number",
+  TEXTAREA: "textarea",
+  DATE: "date",
+  CHECKBOX: "checkbox",
+  RADIO: "radio",
+  SELECT: "select",
+  INPUT: "input",
+  BUTTON: "button",
+
+  // shadcn/ui components
+  ACCORDION: "accordion",
+  ALERT: "alert",
+  ALERT_DIALOG: "alert-dialog",
+  ASPECT_RATIO: "aspect-ratio",
+  AVATAR: "avatar",
+  BADGE: "badge",
+  BREADCRUMB: "breadcrumb",
+  CALENDAR: "calendar",
+  CARD: "card",
+  CAROUSEL: "carousel",
+  CHART: "chart",
+  COLLAPSIBLE: "collapsible",
+  COMBOBOX: "combobox",
+  COMMAND: "command",
+  CONTEXT_MENU: "context-menu",
+  DATA_TABLE: "data-table",
+  DATE_PICKER: "date-picker",
+  DIALOG: "dialog",
+  DRAWER: "drawer",
+  DROPDOWN_MENU: "dropdown-menu",
+};
+
+// Define form element type
 export type ElementType = 
   | "heading" 
   | "paragraph" 
@@ -44,7 +89,33 @@ export type ElementType =
   | "select" 
   | "button" 
   | "divider" 
-  | "spacer";
+  | "spacer"
+  | "title"
+  | "subtitle"
+  | "separator"
+  | "text"
+  | "number"
+  | "date"
+  | "accordion"
+  | "alert"
+  | "alert-dialog"
+  | "aspect-ratio"
+  | "avatar"
+  | "badge"
+  | "breadcrumb"
+  | "calendar"
+  | "card"
+  | "carousel"
+  | "chart"
+  | "collapsible"
+  | "combobox"
+  | "command"
+  | "context-menu"
+  | "data-table"
+  | "date-picker"
+  | "dialog"
+  | "drawer"
+  | "dropdown-menu";
 
 // Define form element interface
 export interface FormElement {
@@ -54,19 +125,84 @@ export interface FormElement {
   placeholder?: string;
   required?: boolean;
   options?: string[];
+  helpText?: string;
   style?: {
     width?: string;
     backgroundColor?: string;
     textColor?: string;
+    borderWidth?: string;
+    borderStyle?: string;
+    borderColor?: string;
     borderRadius?: string;
     padding?: string;
+    paddingY?: string;
+    paddingX?: string;
+    marginY?: string;
+    marginX?: string;
     fontSize?: string;
     fontWeight?: string;
+    lineHeight?: string;
+    letterSpacing?: string;
+    opacity?: string;
+    shadow?: string;
   };
   position?: {
     x: number;
     y: number;
+    type?: "static" | "relative" | "absolute" | "fixed";
+    top?: string;
+    right?: string;
+    bottom?: string;
+    left?: string;
+    zIndex?: string;
+    align?: "left" | "center" | "right";
+    gridColumn?: string;
+    gridRow?: string;
+    hideMobile?: boolean;
+    hideTablet?: boolean;
+    hideDesktop?: boolean;
   };
+  width?: "full" | "medium" | "small" | "tiny" | "custom";
+  customWidth?: string;
+  customWidthUnit?: "px" | "%" | "rem" | "em";
+  size?: "xs" | "small" | "default" | "large" | "xl";
+  labelPosition?: "top" | "left" | "right" | "bottom" | "hidden";
+  textAlign?: "left" | "center" | "right" | "justify";
+  customClass?: string;
+  hidden?: boolean;
+  isSelected?: boolean;
+  
+  // Text input specific
+  defaultValue?: string | number;
+  minLength?: number;
+  maxLength?: number;
+  pattern?: string;
+  inputMode?: string;
+  autocomplete?: string;
+  
+  // Number input specific
+  min?: number;
+  max?: number;
+  step?: number;
+  
+  // Textarea specific
+  rows?: number;
+  resizable?: "none" | "vertical" | "horizontal" | "both";
+  
+  // Checkbox specific
+  defaultChecked?: boolean;
+  checkboxPosition?: "left" | "right";
+  
+  // Button specific
+  buttonVariant?: string;
+  buttonType?: string;
+  icon?: string;
+  iconPosition?: string;
+  
+  // Validation
+  validateOnBlur?: boolean;
+  validateOnChange?: boolean;
+  customValidation?: string;
 }
 
 const FormBuilder = () => {
