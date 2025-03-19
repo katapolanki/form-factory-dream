@@ -1,172 +1,349 @@
-
-import { useState } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { 
   Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   DialogFooter,
   DialogClose
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
-import { toast } from "sonner";
+  Button,
+  Input,
+  Label,
+  Textarea,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  toast,
+  Separator,
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  FormDescription
+} from "@/components/ui";
+import { icons } from "lucide-react";
+import { CodeEditor } from "@/components/code-editor";
+import { cn } from "@/lib/utils";
+import { sanitizeJSX } from "@/lib/sanitizer";
+import { ComponentTemplateSelector } from "./ComponentTemplateSelector";
+import { IconPicker } from "./IconPicker";
+
+const componentSchema = z.object({
+  name: z.string()
+    .min(3, "Name must be at least 3 characters")
+    .max(50)
+    .regex(/^[a-zA-Z0-9\s-]+$/, "Invalid component name"),
+  description: z.string().max(200).optional(),
+  category: z.enum(["layout", "input", "display", "custom", "integration"]),
+  icon: z.string().min(1, "Icon is required"),
+  markup: z.string()
+    .min(10, "Markup must be at least 10 characters")
+    .refine((val) => isValidJSX(val), "Invalid JSX syntax"),
+  props: z.array(z.object({
+    name: z.string(),
+    type: z.enum(["string", "number", "boolean", "object", "function"]),
+    defaultValue: z.string().optional()
+  })).optional(),
+  styling: z.enum(["tailwind", "css", "scss", "styled-components"]).default("tailwind"),
+  isPublic: z.boolean().default(false)
+});
+
+type FormValues = z.infer<typeof componentSchema>;
 
 interface CreateCustomComponentProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (component: any) => void;
+  onSave: (component: CustomComponentData) => void;
+  loading?: boolean;
+}
+
+export interface CustomComponentData {
+  id: string;
+  name: string;
+  description?: string;
+  category: string;
+  icon: string;
+  markup: string;
+  props?: ComponentProp[];
+  styling: string;
+  isPublic: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+interface ComponentProp {
+  name: string;
+  type: string;
+  defaultValue?: string;
 }
 
 const CreateCustomComponent = ({ open, onOpenChange, onSave }: CreateCustomComponentProps) => {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [category, setCategory] = useState("basic");
-  const [icon, setIcon] = useState("Box");
-  const [markup, setMarkup] = useState("");
-  
-  const handleSave = () => {
-    if (!name) {
-      toast.error("Please enter a component name");
-      return;
+  const [tab, setTab] = useState("form");
+  const [previewHtml, setPreviewHtml] = useState("");
+  const [isValidating, setIsValidating] = useState(false);
+  const [templates] = useState([]);
+
+  const form = useForm<FormValues>({
+    resolver: zodResolver(componentSchema),
+    defaultValues: {
+      category: "custom",
+      styling: "tailwind",
+      isPublic: false
     }
-    
-    if (!markup) {
-      toast.error("Please enter component markup");
-      return;
+  });
+
+  const handleTemplateSelect = useCallback((template: any) => {
+    form.reset(template);
+    setTab("form");
+  }, [form]);
+
+  const validateJSX = useCallback(async (jsx: string) => {
+    try {
+      setIsValidating(true);
+      // Implement real JSX validation logic here
+      await sanitizeJSX(jsx);
+      return true;
+    } catch (error) {
+      return "Invalid JSX syntax or dangerous content detected";
+    } finally {
+      setIsValidating(false);
     }
-    
-    onSave({
-      name,
-      description,
-      category,
-      icon,
-      markup,
-      isCustom: true
+  }, []);
+
+  const updatePreview = useCallback((markup: string) => {
+    try {
+      // Implement safe preview rendering
+      const cleanMarkup = sanitizeJSX(markup);
+      setPreviewHtml(cleanMarkup);
+    } catch (error) {
+      setPreviewHtml("<div class='text-destructive'>Error in preview markup</div>");
+    }
+  }, []);
+
+  useEffect(() => {
+    const subscription = form.watch((value) => {
+      if (value.markup) {
+        updatePreview(value.markup);
+      }
     });
-    
-    // Reset form
-    setName("");
-    setDescription("");
-    setCategory("basic");
-    setIcon("Box");
-    setMarkup("");
-    
-    onOpenChange(false);
-    toast.success("Custom component created successfully");
+    return () => subscription.unsubscribe();
+  }, [form, updatePreview]);
+
+  const onSubmit = async (data: FormValues) => {
+    try {
+      const componentData: CustomComponentData = {
+        ...data,
+        id: `custom-${Date.now()}`,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      };
+      onSave(componentData);
+      form.reset();
+      onOpenChange(false);
+      toast.success("Component saved", {
+        description: `${data.name} is now available in your library`
+      });
+    } catch (error) {
+      toast.error("Failed to save component", {
+        description: error instanceof Error ? error.message : "Unknown error occurred"
+      });
+    }
   };
-  
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+    <Dialog open={open} onOpenChange={onOpenChange} modal>
+      <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Create Custom Component</DialogTitle>
-          <DialogDescription>
-            Design your own custom component that can be reused across your forms.
-          </DialogDescription>
+          <DialogTitle className="text-xl">Create Custom Component</DialogTitle>
         </DialogHeader>
-        
-        <div className="grid gap-4 py-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="name" className="text-right">
-              Name
-            </Label>
-            <Input
-              id="name"
-              placeholder="My Custom Component"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="col-span-3"
-            />
-          </div>
-          
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="description" className="text-right">
-              Description
-            </Label>
-            <Input
-              id="description"
-              placeholder="A brief description of your component"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              className="col-span-3"
-            />
-          </div>
-          
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="category" className="text-right">
-              Category
-            </Label>
-            <Select
-              value={category}
-              onValueChange={setCategory}
-            >
-              <SelectTrigger id="category" className="col-span-3">
-                <SelectValue placeholder="Select category" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="basic">Basic</SelectItem>
-                <SelectItem value="input">Input</SelectItem>
-                <SelectItem value="layout">Layout</SelectItem>
-                <SelectItem value="advanced">Advanced</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="icon" className="text-right">
-              Icon
-            </Label>
-            <Select
-              value={icon}
-              onValueChange={setIcon}
-            >
-              <SelectTrigger id="icon" className="col-span-3">
-                <SelectValue placeholder="Select icon" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Box">Box</SelectItem>
-                <SelectItem value="Type">Type</SelectItem>
-                <SelectItem value="Layout">Layout</SelectItem>
-                <SelectItem value="Layers">Layers</SelectItem>
-                <SelectItem value="Code">Code</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="grid grid-cols-4 items-start gap-4">
-            <Label htmlFor="markup" className="text-right pt-2">
-              HTML/JSX
-            </Label>
-            <Textarea
-              id="markup"
-              placeholder="<div className='my-custom-component'>Content goes here</div>"
-              value={markup}
-              onChange={(e) => setMarkup(e.target.value)}
-              className="col-span-3 font-mono text-sm h-[200px]"
-            />
-          </div>
-        </div>
-        
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
-          </DialogClose>
-          <Button onClick={handleSave}>Save Component</Button>
-        </DialogFooter>
+
+        <Tabs value={tab} onValueChange={setTab} className="flex-1 flex flex-col">
+          <TabsList className="grid grid-cols-3">
+            <TabsTrigger value="form">Component Builder</TabsTrigger>
+            <TabsTrigger value="preview">Live Preview</TabsTrigger>
+            <TabsTrigger value="templates">Templates</TabsTrigger>
+          </TabsList>
+
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="flex-1 flex flex-col">
+              <TabsContent value="form" className="flex-1 overflow-auto">
+                <div className="grid grid-cols-2 gap-6 p-4">
+                  {/* Name Field */}
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Component Name</FormLabel>
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            placeholder="MyCustomComponent" 
+                            autoComplete="off"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Use PascalCase for component names
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Icon Picker */}
+                  <FormField
+                    control={form.control}
+                    name="icon"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Icon</FormLabel>
+                        <IconPicker value={field.value} onChange={field.onChange} />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Category Selector */}
+                  <FormField
+                    control={form.control}
+                    name="category"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Category</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select category" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="layout">Layout</SelectItem>
+                            <SelectItem value="input">Input</SelectItem>
+                            <SelectItem value="display">Display</SelectItem>
+                            <SelectItem value="custom">Custom</SelectItem>
+                            <SelectItem value="integration">Integration</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Styling Method */}
+                  <FormField
+                    control={form.control}
+                    name="styling"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Styling Method</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select styling method" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="tailwind">Tailwind CSS</SelectItem>
+                            <SelectItem value="css">Plain CSS</SelectItem>
+                            <SelectItem value="scss">SCSS</SelectItem>
+                            <SelectItem value="styled-components">Styled Components</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* JSX Editor */}
+                  <div className="col-span-2">
+                    <FormField
+                      control={form.control}
+                      name="markup"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Component Markup</FormLabel>
+                          <FormControl>
+                            <CodeEditor
+                              value={field.value}
+                              onChange={field.onChange}
+                              language="jsx"
+                              className="h-96"
+                              onBlur={field.onBlur}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            Use valid JSX syntax. Props are accessible via `props` object.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="preview" className="flex-1 p-4 overflow-auto">
+                <div className="rounded-lg border p-4">
+                  <div 
+                    className="prose dark:prose-invert"
+                    dangerouslySetInnerHTML={{ __html: previewHtml }}
+                  />
+                  {!previewHtml && (
+                    <div className="text-muted-foreground text-center py-8">
+                      Write some JSX to see the preview
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="templates" className="p-4">
+                <ComponentTemplateSelector 
+                  templates={templates}
+                  onSelect={handleTemplateSelect}
+                />
+              </TabsContent>
+
+              <DialogFooter className="border-t pt-4">
+                <DialogClose asChild>
+                  <Button variant="outline">Cancel</Button>
+                </DialogClose>
+                <Button 
+                  type="submit"
+                  disabled={!form.formState.isValid || isValidating}
+                  loading={form.formState.isSubmitting}
+                >
+                  {form.formState.isSubmitting ? "Saving..." : "Save Component"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
+};
+
+// Helper function for JSX validation
+const isValidJSX = (code: string) => {
+  try {
+    // Basic JSX validation - replace with proper parser
+    return code.trim().startsWith("<") && code.trim().endsWith(">");
+  } catch {
+    return false;
+  }
 };
 
 export default CreateCustomComponent;
