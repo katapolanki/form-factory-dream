@@ -1,16 +1,15 @@
 
 import { useState } from "react";
+import { X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LayoutTemplate, FileCode, MousePointer2, Wand2 } from "lucide-react";
 
 interface WelcomeModalProps {
   onClose: () => void;
@@ -18,7 +17,7 @@ interface WelcomeModalProps {
 
 const WelcomeModal = ({ onClose }: WelcomeModalProps) => {
   const [open, setOpen] = useState(true);
-  
+
   const handleClose = () => {
     setOpen(false);
     onClose();
@@ -26,123 +25,106 @@ const WelcomeModal = ({ onClose }: WelcomeModalProps) => {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[700px]">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-500">
-            Welcome to FormCraft
-          </DialogTitle>
+          <DialogTitle className="text-2xl">Welcome to Form Builder</DialogTitle>
           <DialogDescription>
-            The ultimate tool for creating beautiful forms with ease.
+            Create beautiful forms with an intuitive drag and drop interface
           </DialogDescription>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute right-4 top-4"
+            onClick={handleClose}
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </Button>
         </DialogHeader>
-        
-        <Tabs defaultValue="templates">
-          <TabsList className="grid grid-cols-3 mb-4">
+
+        <Tabs defaultValue="getting-started">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="getting-started">Getting Started</TabsTrigger>
             <TabsTrigger value="templates">Templates</TabsTrigger>
-            <TabsTrigger value="features">Features</TabsTrigger>
-            <TabsTrigger value="tips">Quick Tips</TabsTrigger>
+            <TabsTrigger value="tips">Pro Tips</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="templates" className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="border rounded-lg p-4 hover:bg-accent cursor-pointer transition-colors">
-                <div className="aspect-video rounded bg-muted flex items-center justify-center mb-2">
-                  <LayoutTemplate className="h-10 w-10 text-muted-foreground/50" />
-                </div>
-                <h3 className="font-medium">Contact Form</h3>
-                <p className="text-sm text-muted-foreground">A simple contact form with validation</p>
-              </div>
-              
-              <div className="border rounded-lg p-4 hover:bg-accent cursor-pointer transition-colors">
-                <div className="aspect-video rounded bg-muted flex items-center justify-center mb-2">
-                  <LayoutTemplate className="h-10 w-10 text-muted-foreground/50" />
-                </div>
-                <h3 className="font-medium">Registration Form</h3>
-                <p className="text-sm text-muted-foreground">User registration with multiple steps</p>
-              </div>
-              
-              <div className="border rounded-lg p-4 hover:bg-accent cursor-pointer transition-colors">
-                <div className="aspect-video rounded bg-muted flex items-center justify-center mb-2">
-                  <LayoutTemplate className="h-10 w-10 text-muted-foreground/50" />
-                </div>
-                <h3 className="font-medium">Survey Form</h3>
-                <p className="text-sm text-muted-foreground">Collect feedback with various question types</p>
-              </div>
-              
-              <div className="border rounded-lg p-4 hover:bg-accent cursor-pointer transition-colors">
-                <div className="aspect-video rounded bg-muted flex items-center justify-center mb-2">
-                  <LayoutTemplate className="h-10 w-10 text-muted-foreground/50" />
-                </div>
-                <h3 className="font-medium">Blank Form</h3>
-                <p className="text-sm text-muted-foreground">Start from scratch with a blank canvas</p>
-              </div>
+          <TabsContent value="getting-started" className="space-y-4 mt-4">
+            <div className="rounded-lg border p-4">
+              <h3 className="font-medium mb-2">1. Drag & Drop Components</h3>
+              <p className="text-sm text-muted-foreground">
+                Select components from the left panel and drag them onto the canvas.
+              </p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <h3 className="font-medium mb-2">2. Configure Properties</h3>
+              <p className="text-sm text-muted-foreground">
+                Click on any element to edit its properties in the right panel.
+              </p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <h3 className="font-medium mb-2">3. Preview & Export</h3>
+              <p className="text-sm text-muted-foreground">
+                Use the preview button to see how your form will look and function.
+              </p>
             </div>
           </TabsContent>
           
-          <TabsContent value="features" className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="flex gap-3">
-                <MousePointer2 className="h-6 w-6 text-primary shrink-0" />
-                <div>
-                  <h3 className="font-medium">Drag & Drop Builder</h3>
-                  <p className="text-sm text-muted-foreground">Easily build forms with our intuitive drag and drop interface</p>
-                </div>
-              </div>
-              
-              <div className="flex gap-3">
-                <LayoutTemplate className="h-6 w-6 text-primary shrink-0" />
-                <div>
-                  <h3 className="font-medium">Form Templates</h3>
-                  <p className="text-sm text-muted-foreground">Start quickly with our pre-built form templates</p>
-                </div>
-              </div>
-              
-              <div className="flex gap-3">
-                <FileCode className="h-6 w-6 text-primary shrink-0" />
-                <div>
-                  <h3 className="font-medium">Export Options</h3>
-                  <p className="text-sm text-muted-foreground">Export your forms as HTML or JSON</p>
-                </div>
-              </div>
-              
-              <div className="flex gap-3">
-                <Wand2 className="h-6 w-6 text-primary shrink-0" />
-                <div>
-                  <h3 className="font-medium">Theme Customization</h3>
-                  <p className="text-sm text-muted-foreground">Customize colors, fonts, and styles to match your brand</p>
-                </div>
-              </div>
+          <TabsContent value="templates" className="mt-4 grid grid-cols-2 gap-4">
+            <div className="rounded-lg border p-4 hover:border-primary cursor-pointer">
+              <h3 className="font-medium mb-2">Contact Form</h3>
+              <p className="text-sm text-muted-foreground">
+                Name, email, subject and message fields with validation.
+              </p>
+            </div>
+            <div className="rounded-lg border p-4 hover:border-primary cursor-pointer">
+              <h3 className="font-medium mb-2">Survey</h3>
+              <p className="text-sm text-muted-foreground">
+                Multiple choice questions with rating scales and text areas.
+              </p>
+            </div>
+            <div className="rounded-lg border p-4 hover:border-primary cursor-pointer">
+              <h3 className="font-medium mb-2">Registration Form</h3>
+              <p className="text-sm text-muted-foreground">
+                Account creation with password confirmation and terms acceptance.
+              </p>
+            </div>
+            <div className="rounded-lg border p-4 hover:border-primary cursor-pointer">
+              <h3 className="font-medium mb-2">Payment Form</h3>
+              <p className="text-sm text-muted-foreground">
+                Credit card inputs with validation and billing information.
+              </p>
             </div>
           </TabsContent>
           
-          <TabsContent value="tips" className="space-y-4">
-            <div className="bg-muted p-4 rounded-lg">
-              <h3 className="font-medium mb-2">Getting Started Tips</h3>
-              <ul className="space-y-2 text-sm">
-                <li className="flex items-start gap-2">
-                  <span className="bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs shrink-0">1</span>
-                  <span>Drag components from the sidebar onto the canvas</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs shrink-0">2</span>
-                  <span>Click on any element to edit its properties</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs shrink-0">3</span>
-                  <span>Use the layout options to organize your form elements</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="bg-primary text-primary-foreground rounded-full h-5 w-5 flex items-center justify-center text-xs shrink-0">4</span>
-                  <span>Save often to prevent losing your work</span>
-                </li>
-              </ul>
+          <TabsContent value="tips" className="space-y-4 mt-4">
+            <div className="rounded-lg border p-4">
+              <h3 className="font-medium mb-2">Keyboard Shortcuts</h3>
+              <p className="text-sm text-muted-foreground">
+                Use Ctrl+Z for undo, Ctrl+Y for redo, Delete to remove selected elements.
+              </p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <h3 className="font-medium mb-2">Layout Options</h3>
+              <p className="text-sm text-muted-foreground">
+                Switch between free, grid, columns, and rows layouts for different form designs.
+              </p>
+            </div>
+            <div className="rounded-lg border p-4">
+              <h3 className="font-medium mb-2">Save Often</h3>
+              <p className="text-sm text-muted-foreground">
+                Use the version history to track changes and revert if needed.
+              </p>
             </div>
           </TabsContent>
         </Tabs>
-        
-        <DialogFooter>
+
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="secondary" onClick={handleClose}>
+            Don't show again
+          </Button>
           <Button onClick={handleClose}>Get Started</Button>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

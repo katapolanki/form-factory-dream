@@ -1,127 +1,95 @@
 
 import { useState } from "react";
+import { useTheme } from "next-themes";
+import { Moon, Sun, Save, Download, UploadCloud, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { 
-  Download, 
-  Save, 
-  Settings, 
-  Moon, 
-  Sun, 
-  FileCode, 
-  Share2 
-} from "lucide-react";
-import { ModeToggle } from "@/components/ui/mode-toggle";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ModeToggle } from "@/components/ui/mode-toggle";
 import { toast } from "sonner";
 
 const Header = () => {
-  const [projectName, setProjectName] = useState("My Form Project");
-  
+  const [projectName, setProjectName] = useState("My Form");
+
   const handleSave = () => {
-    // Implement save functionality
-    toast.success("Project saved successfully!");
+    toast.success("Form saved successfully!");
   };
-  
-  const handleExport = (format: string) => {
-    // Implement export functionality
-    toast.success(`Project exported as ${format} successfully!`);
+
+  const handleExport = () => {
+    toast.success("Form exported successfully!");
   };
-  
-  const handleShareProject = () => {
-    // Implement share functionality
-    navigator.clipboard.writeText(window.location.href);
-    toast.success("Project link copied to clipboard!");
+
+  const handleImport = () => {
+    toast.info("Import feature coming soon!");
   };
 
   return (
-    <header className="border-b backdrop-blur-sm bg-background/90 sticky top-0 z-50">
+    <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
       <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-4">
-            <div className="text-2xl font-bold text-primary">
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary to-purple-500">
-                FormCraft
-              </span>
-            </div>
-            
-            <div className="h-6 w-px bg-border mx-1"></div>
-            
-            <div className="relative">
-              <input
-                type="text"
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                className="h-9 rounded-md border border-input px-3 py-1 text-sm bg-transparent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-            </div>
-          </div>
-          
+        <div className="flex h-16 items-center justify-between">
           <div className="flex items-center gap-2">
-            <TooltipProvider>
+            <h1 className="text-xl font-semibold">
+              Form Builder
+            </h1>
+            <div className="h-6 w-px bg-border mx-2" />
+            <input
+              type="text"
+              value={projectName}
+              onChange={(e) => setProjectName(e.target.value)}
+              className="bg-transparent border-none focus:outline-none text-sm font-medium"
+            />
+          </div>
+
+          <TooltipProvider>
+            <div className="flex items-center gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={handleSave}>
-                    <Save className="h-5 w-5" />
+                  <Button variant="outline" size="icon" onClick={handleSave}>
+                    <Save className="h-4 w-4" />
+                    <span className="sr-only">Save</span>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Save Project</TooltipContent>
+                <TooltipContent>Save form</TooltipContent>
               </Tooltip>
-
+              
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <Download className="h-5 w-5" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleExport("HTML")}>
-                        <FileCode className="mr-2 h-4 w-4" />
-                        <span>Export as HTML</span>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => handleExport("JSON")}>
-                        <FileCode className="mr-2 h-4 w-4" />
-                        <span>Export as JSON</span>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TooltipTrigger>
-                <TooltipContent>Export</TooltipContent>
-              </Tooltip>
-
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon" onClick={handleShareProject}>
-                    <Share2 className="h-5 w-5" />
+                  <Button variant="outline" size="icon" onClick={handleExport}>
+                    <Download className="h-4 w-4" />
+                    <span className="sr-only">Export</span>
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Share Project</TooltipContent>
+                <TooltipContent>Export form</TooltipContent>
               </Tooltip>
-
+              
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <Settings className="h-5 w-5" />
+                  <Button variant="outline" size="icon" onClick={handleImport}>
+                    <UploadCloud className="h-4 w-4" />
+                    <span className="sr-only">Import</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Import form</TooltipContent>
+              </Tooltip>
+              
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="icon">
+                    <Settings className="h-4 w-4" />
+                    <span className="sr-only">Settings</span>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Settings</TooltipContent>
               </Tooltip>
-
+              
+              <div className="h-6 w-px bg-border mx-1" />
               <ModeToggle />
-            </TooltipProvider>
-          </div>
+            </div>
+          </TooltipProvider>
         </div>
       </div>
     </header>
